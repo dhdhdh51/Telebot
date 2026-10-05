@@ -14,6 +14,7 @@ What exists today, verified by an end-to-end run against MariaDB 10.5 + PHP 8.4
 - **Withdrawals**: request (fee, min, daily limit, encrypted details), admin PROCESSING/PAID/REJECTED/CANCELLED with single refund.
 - **Referrals**: trusted sources only, new users only, paid by cron after eligibility, exactly once.
 - **Admin**: installer (self-locking), login (CSRF, rate limit, lockout, session regeneration, constant-time miss), dashboard.
+- **Admin videos**: list/filter/search, upload with progress bar (MIME-checked, random filenames, thumbnail resize, browser-read duration), edit, publish/unpublish, post to Telegram channel, delete (role-gated, CSRF on every action).
 - **Mini App UI**: home (continue watching, trending, latest, deep-link routing) and player (resume, progress, interstitial ad).
 - **Cron**: subscription expiry, analytics aggregation, cleanup, referral payouts (CLI-only).
 
@@ -21,7 +22,7 @@ What exists today, verified by an end-to-end run against MariaDB 10.5 + PHP 8.4
 
 | Area | Missing |
 |---|---|
-| Admin pages | videos (upload/edit/delete UI), categories, telegram (publish button/webhook status), users, subscriptions, ads, rewards, wallet adjustments, withdrawals queue, referrals, reports/charts, settings, audit log viewer |
+| Admin pages | categories, telegram (webhook status page), users, subscriptions, ads, rewards, wallet adjustments, withdrawals queue, referrals, reports/charts, settings, audit log viewer |
 | Mini App pages | search, categories, profile, subscription, wallet, earn, withdrawal form |
 | APIs | `subscription.php`, `wallet.php`, `withdrawal.php`, `rewards.php`, `categories.php` (categories are served by `videos.php`) |
 | Payments | `PaymentGatewayInterface` + Razorpay/Cashfree/PayU adapters, order creation, signed webhook → subscription activation |

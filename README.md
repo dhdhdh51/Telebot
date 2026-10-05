@@ -53,6 +53,19 @@ PHP 8.2 + MySQL/MariaDB Telegram Mini App for cPanel/shared hosting (no Node.js,
    ```
 10. **Force HTTPS**: uncomment the two `RewriteCond/RewriteRule` lines at the top of `.htaccess`.
 
+## Uploading and publishing videos
+
+1. Admin panel → **Videos** → **+ Upload Video** (or **⬆ Upload Video** on the dashboard).
+2. Pick the video (MP4/H.264 plays everywhere) and a 16:9 thumbnail, fill in title, category,
+   FREE/PREMIUM, and status. Max size shown on the form = the smaller of `MAX_UPLOAD_SIZE`
+   and your host's PHP limits.
+3. In the list, click **📱 Post to Telegram** on a PUBLISHED video. The post (thumbnail, title,
+   description, category, ▶ WATCH VIDEO) goes to `TELEGRAM_CHANNEL_ID`; errors are shown and
+   stored in `telegram_posts.error_message`.
+
+Shared hosts often cap uploads at 50–256 MB and time out long uploads. If a file is too big,
+compress it (e.g. 720p H.264, ~1–2 Mbps) before uploading.
+
 ## How it works
 
 | Concern | Where | Notes |

@@ -53,6 +53,13 @@ $pendingWithdrawals = $db->fetchAll(
 include 'includes/header.php';
 ?>
 
+<?php if (Auth::hasPermission('create')): ?>
+<div style="margin-bottom:20px;display:flex;gap:12px;flex-wrap:wrap;">
+    <a href="/admin/video-add.php" class="btn btn-primary">⬆ Upload Video</a>
+    <a href="/admin/videos.php" class="btn btn-primary" style="background:#34495e">🎬 Manage Videos</a>
+</div>
+<?php endif; ?>
+
 <div class="stats-grid">
     <div class="stat-card">
         <h3>Total Users</h3>
