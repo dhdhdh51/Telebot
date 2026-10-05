@@ -1,0 +1,50 @@
+# BharatPlay Apache configuration (cPanel / shared hosting)
+
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Force HTTPS (required by Telegram Mini Apps). Uncomment once SSL is active.
+    # RewriteCond %{HTTPS} off
+    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # Private code, config, logs, CLI tools and VCS metadata are never web-accessible.
+    RewriteRule ^(config|includes|logs|cron|cli|\.git)(/|$) - [F,L]
+    # Raw video files must go through api/video-stream.php (auth + premium check).
+    RewriteRule ^uploads/videos/ - [F,L]
+</IfModule>
+
+# Dotfiles (.env, .user.ini, .htaccess, .git*) and dumps/docs/backups
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+<FilesMatch "\.(sql|md|lock|log|bak|ini|sh|example\.php)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+    # No X-Frame-Options: Telegram Web/Desktop embed the Mini App in an iframe.
+    # frame-ancestors restricts embedding to Telegram's web clients instead.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob: https:; connect-src 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org; base-uri 'self'; form-action 'self'"
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+</IfModule>
+
+# PHP limits (upload size etc.) live in .user.ini — php_value lines break
+# PHP-FPM hosts with a 500 error and are ignored by PHP 8's mod_php name.

@@ -1,0 +1,9 @@
+# Videos must only be served through /api/video-stream.php (auth + premium checks).
+# Without this, anyone with a file URL could bypass the subscription check.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

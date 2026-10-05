@@ -1,0 +1,5 @@
+# Thumbnails are public, but nothing in here may ever execute as a script.
+<FilesMatch "\.(php|phtml|php[0-9]|phar|pl|py|cgi|sh)$">
+    Require all denied
+</FilesMatch>
+Options -Indexes -ExecCGI

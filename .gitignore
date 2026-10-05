@@ -1,0 +1,52 @@
+# BharatPlay .gitignore
+
+# Configuration
+/config/config.php
+
+# Uploads
+/uploads/videos/*
+/uploads/thumbnails/*
+!/uploads/videos/.gitkeep
+!/uploads/thumbnails/.gitkeep
+# Access rules must ship with the code (videos dir denies direct downloads)
+!/uploads/videos/.htaccess
+!/uploads/thumbnails/.htaccess
+
+# Logs
+/logs/*
+!/logs/.gitkeep
+
+# System files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary files
+/tmp/*
+*.tmp
+*.cache
+
+# Environment
+.env
+.env.local
+
+# Database backups
+*.sql.gz
+*.sql.zip
+backup/
+
+# Node modules (if using any build tools)
+node_modules/
+package-lock.json
+
+# Composer (if using any PHP packages)
+/vendor/
+composer.lock
+
+# IDE specific
+*.sublime-project
+*.sublime-workspace
