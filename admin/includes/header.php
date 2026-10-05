@@ -329,7 +329,7 @@ $currentAdmin = Auth::getCurrentAdmin();
                 ];
                 foreach ($menu as $page => [$icon, $label]):
                     if (!file_exists(__DIR__ . "/../{$page}.php")) continue; ?>
-                <a href="/admin/<?php echo $page; ?>.php" class="<?php echo $currentPage === $page ? 'active' : ''; ?>">
+                <a href="/admin/<?php echo $page; ?>.php" class="<?php echo ($currentPage === $page || ($page === 'videos' && strpos($currentPage, 'video-') === 0)) ? 'active' : ''; ?>">
                     <span><?php echo $icon; ?></span> <?php echo $label; ?>
                 </a>
                 <?php endforeach; ?>
