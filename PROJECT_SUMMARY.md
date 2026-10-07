@@ -1,7 +1,7 @@
 # BharatPlay – Implementation Status
 
 What exists today, verified by an end-to-end run against MariaDB 10.5 + PHP 8.4
-(329 checks across install wizard, auth, streaming, ledger, withdrawals, rewards, referrals, crons, admin, Telegram, payments, ads, reports).
+(348 checks across install wizard, auth, streaming, ledger, withdrawals, rewards, referrals, crons, admin, Telegram, payments, ads, reports).
 
 ## Implemented
 

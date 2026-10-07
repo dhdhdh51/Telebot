@@ -87,7 +87,7 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 | 3 | **Videos → + Upload Video** | Video + thumbnail, FREE/PREMIUM, "Post to Telegram" tick → Upload. |
 | 4 | **Subscriptions** | Plans ke price/din set karo. |
 | 5 | **Settings → Payment** | **Razorpay** ya **PayU** choose karo. Razorpay: Key ID + Secret + Webhook secret. PayU: Merchant Key + Salt, mode **Test** pehle, test payment ho jaye to **Live**. Dono ke webhook URL usi page par likhe hain. |
-| 6 | **Ads** | Apni image ad ya Adsterra/Monetag ka code. |
+| 6 | **Ads** | Apni image ad ya Adsterra/Monetag ka code. **Adsgram ad video se pehle:** partner.adsgram.ai → Ad unit type **Interstitial** → BlockID (`int-…`) → Admin → **Settings → Ads** → "Adsgram ad before every video" tick + block ID → Save. "Video ad every N videos" se kitni baar aaye ye set hota hai. |
 | 7 | **Rewards** | Adsgram (Watch ad & earn), daily check-in, referral bonus. Default sab safe/OFF hain. |
 | 8 | **Settings → Wallet** | Min withdrawal, fee, UPI/Bank, withdrawals ON/OFF. |
 

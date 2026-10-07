@@ -38,6 +38,7 @@ switch ($action) {
     case 'update_progress':   updateWatchProgress($userId); break;
     case 'get_ad':            getAd($userId); break;
     case 'ad_click':          adClick($userId); break;
+    case 'ad_complete':       adComplete($userId); break;
     default:
         jsonResponse(false, ['code' => 'INVALID_ACTION'], 'Invalid action');
 }
@@ -231,6 +232,18 @@ function adClick($userId) {
     );
     if ($imp && !$imp['clicked']) {
         Ads::trackClick((int)$imp['ad_id'], $userId, $impressionId);
+    }
+    jsonResponse(true, null, 'OK');
+}
+
+function adComplete($userId) {
+    $impressionId = (int)(jsonInput()['impression_id'] ?? 0);
+    $imp = db()->fetchOne(
+        "SELECT id, ad_id, completed FROM ad_impressions WHERE id = ? AND user_id = ?",
+        [$impressionId, $userId]
+    );
+    if ($imp && !$imp['completed']) {
+        Ads::trackCompletion((int)$imp['ad_id'], $impressionId);
     }
     jsonResponse(true, null, 'OK');
 }

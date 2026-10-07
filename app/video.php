@@ -191,6 +191,8 @@
     <div id="videoInfo" class="video-info" style="display:none;"></div>
     <div id="bannerAd" class="ad-slot" style="display:none;padding:0 16px;background:var(--tg-theme-bg-color,#fff)"></div>
 
+    <script>var adsgramFailed = false;</script>
+    <script src="https://sad.adsgram.ai/js/sad.min.js" async onerror="adsgramFailed = true"></script>
     <script src="/assets/js/app.js"></script>
     <script>
         const HAS_SUBSCRIPTION_PAGE = <?php echo file_exists(__DIR__ . '/subscription.php') ? 'true' : 'false'; ?>;
@@ -237,9 +239,13 @@
             el.style.display = 'block';
         }
 
-        function showVideoPlayer(streamUrl, history) {
+        async function showVideoPlayer(streamUrl, history) {
             const video = document.getElementById('video');
             document.getElementById('videoPlayer').style.display = 'block';
+            // The ad (if the server says one is due) plays BEFORE the video is loaded.
+            video.controls = false;
+            await maybeShowAd();
+            video.controls = true;
             video.src = streamUrl;
 
             if (history && history.last_position > 0 && !Number(history.completed)) {
@@ -252,8 +258,7 @@
             video.addEventListener('pause', () => saveProgress());
             video.addEventListener('ended', () => saveProgress());
             progressTimer = setInterval(() => { if (!video.paused) saveProgress(); }, 10000);
-
-            maybeShowAd();
+            video.play().catch(() => {}); // may need a tap if the browser blocks autoplay
         }
 
         function showPremiumLock() {
@@ -280,13 +285,15 @@
             }
         }
 
+        let adDone = null;
+
+        /** Resolves when the ad is finished/closed, or immediately if no ad is due. */
         async function maybeShowAd() {
-            // Server decides: premium users and frequency rules return no ad.
+            // Server decides: premium users and the "every N videos" rule return no ad.
             const res = await BP.api('/api/videos.php?action=get_ad&type=INTERSTITIAL&video_id=' + videoId);
             if (!res.success || !res.data || !res.data.ad) return;
             const ad = res.data.ad;
-            const video = document.getElementById('video');
-            video.pause();
+            if (ad.provider === 'adsgram') return showAdsgram(ad);
 
             const creative = document.getElementById('adCreative');
             creative.innerHTML = '';
@@ -305,11 +312,33 @@
             if (!tick()) {
                 const t = setInterval(() => { if (tick()) clearInterval(t); }, 1000);
             }
+            return new Promise(resolve => { adDone = resolve; });
         }
 
         function closeAd() {
             document.getElementById('adContainer').style.display = 'none';
-            document.getElementById('video').play().catch(() => {});
+            if (adDone) { adDone(); adDone = null; }
+        }
+
+        /** Adsgram full-screen interstitial. Any failure (no ad, blocked, error) just continues to the video. */
+        async function showAdsgram(ad) {
+            const loading = document.getElementById('loadingContainer');
+            loading.style.display = 'block';
+            loading.querySelector('div:last-child').textContent = 'Loading…';
+            for (let i = 0; i < 30 && !window.Adsgram && !adsgramFailed; i++) {
+                await new Promise(r => setTimeout(r, 100));
+            }
+            loading.style.display = 'none';
+            if (!window.Adsgram) return;
+            try {
+                const ctrl = window.Adsgram.init({ blockId: String(ad.block_id) });
+                const result = await ctrl.show();
+                if (result && result.done) {
+                    BP.post('/api/videos.php', { action: 'ad_complete', impression_id: ad.impression_id });
+                }
+            } catch (e) {
+                // closed early / no ad available / error: nothing to do
+            }
         }
 
         function goBack() {

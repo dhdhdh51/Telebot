@@ -72,7 +72,43 @@ class Ads {
     }
 
     /** Public, client-safe representation of an ad. */
+    const ADSGRAM_MARK = '{"provider":"adsgram"}';
+
+    public static function isProviderAd(array $ad) {
+        return ($ad['targeting_rules'] ?? '') === self::ADSGRAM_MARK;
+    }
+
+    /**
+     * Adsgram pre-roll is stored as a normal INTERSTITIAL row (so priority, frequency
+     * and impression stats work like any other ad) marked via targeting_rules.
+     * Settings → Ads is the source of truth; this keeps the row in sync.
+     */
+    public static function syncAdsgramPreroll() {
+        $db = db();
+        $block = trim((string)getSetting('ads', 'adsgram_preroll_block', ''));
+        $on = getSetting('ads', 'adsgram_preroll_enabled', false) && preg_match('/^(int-)?\d{1,12}$/', $block);
+        $prio = (int)getSetting('ads', 'adsgram_preroll_priority', 10);
+        $row = $db->fetchOne("SELECT id FROM ads WHERE targeting_rules = ?", [self::ADSGRAM_MARK]);
+        if ($row) {
+            $db->execute("UPDATE ads SET name = 'Adsgram pre-roll', type = 'INTERSTITIAL', status = ?, priority = ?, start_date = NULL, end_date = NULL WHERE id = ?",
+                [$on ? 'ACTIVE' : 'INACTIVE', $prio, $row['id']]);
+        } elseif ($on) {
+            $db->execute("INSERT INTO ads (name, type, status, priority, targeting_rules) VALUES ('Adsgram pre-roll', 'INTERSTITIAL', 'ACTIVE', ?, ?)",
+                [$prio, self::ADSGRAM_MARK]);
+        }
+        return (bool)$on;
+    }
+
     public static function toClient(array $ad) {
+        if (self::isProviderAd($ad)) {
+            return [
+                'id' => (int)$ad['id'],
+                'impression_id' => (int)$ad['impression_id'],
+                'type' => $ad['type'],
+                'provider' => 'adsgram',
+                'block_id' => (string)getSetting('ads', 'adsgram_preroll_block', ''),
+            ];
+        }
         return [
             'id' => (int)$ad['id'],
             'impression_id' => (int)$ad['impression_id'],
