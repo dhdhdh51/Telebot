@@ -65,6 +65,16 @@ include 'includes/header.php';
 
 <?php renderFlash(); ?>
 
+<?php if (isSuperAdmin()):
+    $exposed = cachedExposureCheck(isset($_GET['recheck']));
+    if ($exposed): ?>
+<div class="alert alert-error">
+    <b>⚠ Security: these private files can be downloaded from the internet:</b> <?= e(implode(', ', $exposed)) ?>.<br>
+    Your server is probably <b>Nginx (aaPanel)</b>, which ignores .htaccess. aaPanel → Website → <?= e(parse_url(appUrl(), PHP_URL_HOST)) ?> → <b>URL rewrite</b> →
+    paste the rules from <code>deploy/nginx-aapanel.conf</code> → Save. Then <a href="?recheck=1">check again</a>.
+</div>
+<?php endif; endif; ?>
+
 <?php if (Auth::hasPermission('create')): ?>
 <div style="margin-bottom:20px;display:flex;gap:12px;flex-wrap:wrap;">
     <a href="/admin/video-add.php" class="btn btn-primary">⬆ Upload Video</a>

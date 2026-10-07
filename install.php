@@ -382,14 +382,35 @@ code,pre{background:#1e2235;color:#e7e9f3;border-radius:6px;font-size:13px}code{
     </form>
     <p><small>Everything here can be changed later in <b>Admin → Telegram</b>.</small></p>
 
-<?php else: ?>
-    <h2>Step 5 – Cron jobs &amp; finish</h2>
-    <p>cPanel → <b>Cron Jobs</b> → add these 4 lines (Common Settings: as shown).<br>
-       <small>If cPanel shows a different PHP path, check it with <code>which php</code> in Terminal — usually <code>/usr/local/bin/php</code>.</small></p>
-    <pre><?php $p = $ROOT; echo $e("0 * * * *  /usr/local/bin/php $p/cron/subscription-expiry.php >/dev/null 2>&1
-15 * * * * /usr/local/bin/php $p/cron/referral-rewards.php >/dev/null 2>&1
-0 1 * * *  /usr/local/bin/php $p/cron/analytics.php >/dev/null 2>&1
-0 3 * * *  /usr/local/bin/php $p/cron/reward-cleanup.php >/dev/null 2>&1"); ?></pre>
+<?php else:
+    require_once $CONFIG;
+    require_once $ROOT . '/config/database.php';
+    require_once $ROOT . '/includes/security.php';
+    require_once $ROOT . '/includes/functions.php';
+    $isNginx = stripos($_SERVER['SERVER_SOFTWARE'] ?? '', 'nginx') !== false;
+    $isAaPanel = strpos($ROOT, '/www/wwwroot/') === 0;
+    $exposed = exposedPrivatePaths();
+    $php = phpCliPath();
+?>
+    <h2>Step 5 – Security rules, cron jobs &amp; finish</h2>
+    <?php if ($isNginx || $isAaPanel || $exposed): ?>
+        <h3><?= $exposed ? '<span class="bad">✘</span>' : ($exposed === [] ? '<span class="ok">✔</span>' : '•') ?> Nginx security rules <?= $isAaPanel ? '(aaPanel)' : '' ?></h3>
+        <?php if ($exposed): ?><div class="err">These private files are downloadable right now: <?= $e(implode(', ', $exposed)) ?>.</div>
+        <?php elseif ($exposed === []): ?><div class="note">Private files are blocked ✔</div><?php endif; ?>
+        <p>aaPanel → <b>Website</b> → your site → <b>URL rewrite</b> → paste this → <b>Save</b>, then reload this page:</p>
+        <pre><?= $e(file_get_contents($ROOT . '/deploy/nginx-aapanel.conf')) ?></pre>
+    <?php endif; ?>
+    <h3>Cron jobs</h3>
+    <?php if ($isAaPanel): ?>
+        <p>aaPanel → <b>Cron</b> → Type of Task: <b>Shell Script</b> → add each line's command with the shown schedule
+           (or one task "Every hour" running all four).</p>
+    <?php else: ?>
+    <p>cPanel → <b>Cron Jobs</b> → add these 4 lines.</p>
+    <?php endif; ?>
+    <pre><?php $p = $ROOT; echo $e("0 * * * *  $php $p/cron/subscription-expiry.php >/dev/null 2>&1
+15 * * * * $php $p/cron/referral-rewards.php >/dev/null 2>&1
+0 1 * * *  $php $p/cron/analytics.php >/dev/null 2>&1
+0 3 * * *  $php $p/cron/reward-cleanup.php >/dev/null 2>&1"); ?></pre>
     <h3>After login, in the admin panel</h3>
     <ol style="font-size:14px;line-height:1.8">
         <li><b>Telegram</b> → click <b>🔍 Check everything</b> (all ✔?)</li>
@@ -399,7 +420,7 @@ code,pre{background:#1e2235;color:#e7e9f3;border-radius:6px;font-size:13px}code{
         <li><b>Ads</b> → add banner / ad network code</li>
         <li><b>Rewards</b> → Adsgram block ID (optional)</li>
     </ol>
-    <div class="warn">⚠ Uncomment the two “Force HTTPS” lines at the top of <code>.htaccess</code> once https works.</div>
+    <div class="warn">⚠ HTTPS: aaPanel → Website → SSL → Let's Encrypt → <b>Force HTTPS</b> ON. (cPanel/Apache: uncomment the two “Force HTTPS” lines in <code>.htaccess</code>.)</div>
     <form method="POST"><?= $csrfField ?><input type="hidden" name="finish" value="1">
         <button class="btn">✔ Finish – delete installer &amp; go to admin login</button></form>
 <?php endif; ?>

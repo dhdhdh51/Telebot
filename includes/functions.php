@@ -495,3 +495,54 @@ function applyReferral($userId, $referralCode, $isNewUser) {
     }
     return (bool)$updated;
 }
+
+/**
+ * Ask our own website whether private files are downloadable. On Nginx (aaPanel)
+ * .htaccess is ignored, so this detects missing server rules.
+ * @return array|null list of exposed paths, [] if all blocked, null if the site can't reach itself
+ */
+function exposedPrivatePaths($baseUrl = null) {
+    $base = rtrim($baseUrl ?? appUrl(), '/');
+    $probe = ['uploads/videos/.gitkeep' => 'videos (premium bypass!)', 'database.sql' => 'database.sql', 'config/config.example.php' => 'config folder',
+              'includes/csp.php' => 'includes folder', 'logs/.gitkeep' => 'logs'];
+    $exposed = [];
+    $reached = false;
+    foreach ($probe as $path => $label) {
+        $ch = curl_init($base . '/' . $path);
+        curl_setopt_array($ch, [CURLOPT_NOBODY => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5,
+            CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_FOLLOWLOCATION => false]);
+        curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($code > 0) {
+            $reached = true;
+        }
+        if ($code === 200) {
+            $exposed[] = $label;
+        }
+    }
+    return $reached ? $exposed : null;
+}
+
+/** Cached (1 h) version for the admin dashboard. */
+function cachedExposureCheck($refresh = false) {
+    $at = (int)getSetting('system', 'exposure_checked_at', 0);
+    if (!$refresh && $at > time() - 3600) {
+        $v = getSetting('system', 'exposure_result', null);
+        return is_array($v) ? $v : null;
+    }
+    $r = exposedPrivatePaths();
+    saveSetting('system', 'exposure_result', $r, 'JSON');
+    saveSetting('system', 'exposure_checked_at', time(), 'INTEGER');
+    return $r;
+}
+
+/** Path to the PHP CLI binary for cron lines (aaPanel: /www/server/php/82/bin/php). */
+function phpCliPath() {
+    foreach ([PHP_BINDIR . '/php', '/usr/local/bin/php', '/usr/bin/php'] as $p) {
+        if (@is_file($p)) {
+            return $p;
+        }
+    }
+    return 'php';
+}

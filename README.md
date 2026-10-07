@@ -2,7 +2,7 @@
 
 PHP 8.2 + MySQL/MariaDB Telegram Mini App for cPanel/shared hosting (no Node.js, no framework).
 
-**Install / re-install: follow [SETUP.md](SETUP.md)** (step by step, Hindi/English). Everything is done in
+**Install / re-install: follow [SETUP.md](SETUP.md)** (cPanel and **aaPanel/Nginx** — on Nginx paste `deploy/nginx-aapanel.conf` into the site's URL rewrite) (step by step, Hindi/English). Everything is done in
 the browser through `install.php`: it checks the server, creates the tables, writes `config/config.php`,
 creates the admin, connects the Telegram bot + webhook, shows the cron lines and deletes itself.
 
@@ -89,7 +89,7 @@ See section 9 of [SETUP.md](SETUP.md).
 - **Every API call returns 401 inside Telegram Desktop/Web** – the site must be HTTPS (the session cookie is `Secure; SameSite=None`).
 - **"Session expired, please reopen the Mini App"** – `initData` is older than `security.telegram_auth_timeout` (default 3600 s); reopen from Telegram.
 - **Publishing fails** – check `telegram_posts.error_message`; usually the bot isn't a channel admin or `TELEGRAM_CHANNEL_ID` is wrong (`@name` or `-100…`).
-- **500 error after upload** – some hosts reject `php_value` in `.htaccess`; this project uses `.user.ini` instead. Check `logs/php-errors.log`.
+- **500 error after upload** – some hosts reject `php_value` in `.htaccess`; optional limits are in `deploy/user.ini.cpanel` (copy to `.user.ini` on cPanel only). Check `logs/php-errors.log`.
 
 ## Layout
 
@@ -99,7 +99,7 @@ app/        Mini App pages                        bot/     Telegram webhook
 config/     config.example.php, database.php      cron/    scheduled jobs
 includes/   bootstrap, auth, security, csrf, telegram, video, wallet, ads, functions
 uploads/    thumbnails/ (public), videos/ (denied) assets/  shared JS
-database.sql  install.php  .htaccess  .user.ini
+database.sql  install.php  .htaccess (Apache)  deploy/ (nginx-aapanel.conf, user.ini.cpanel)
 ```
 
 Only upload content you own or are licensed to distribute.

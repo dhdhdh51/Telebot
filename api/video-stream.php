@@ -87,6 +87,7 @@ header('Accept-Ranges: bytes');
 header('Content-Disposition: inline');
 header('Cache-Control: private, no-store'); // authorised content must not be cached by shared proxies
 header('X-Content-Type-Options: nosniff');
+header('X-Accel-Buffering: no'); // Nginx/aaPanel: stream directly, don't buffer the whole file
 
 while (ob_get_level()) {
     ob_end_clean();

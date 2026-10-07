@@ -7,12 +7,13 @@
 require_once __DIR__ . '/includes/admin-bootstrap.php';
 require_once __DIR__ . '/../includes/video.php';
 require_once __DIR__ . '/../includes/telegram.php';
+require_once __DIR__ . '/../includes/chunk-upload.php';
 
 requirePermission('create', '/admin/videos.php');
 
 $db = db();
 $categories = $db->fetchAll("SELECT id, name FROM categories WHERE status = 'ACTIVE' ORDER BY display_order, name");
-$limit = effectiveUploadLimit();
+$limit = ChunkUpload::maxVideoSize(); // chunked upload: not bound by PHP's per-request limit
 $isXhr = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
 
 function respond($ok, $message, $redirect = null) {
@@ -60,7 +61,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($accessType, ['FREE', 'PREMIUM'], true) || !in_array($status, ['DRAFT', 'PUBLISHED'], true)) {
         respond(false, 'Invalid access type or status.');
     }
-    if (empty($_FILES['video']) || empty($_FILES['thumbnail'])) {
+    $uploadId = (string)($_POST['upload_id'] ?? '');
+    if (($uploadId === '' && empty($_FILES['video'])) || empty($_FILES['thumbnail'])) {
         respond(false, 'Both a video file and a thumbnail are required.');
     }
 
@@ -69,7 +71,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$thumb['success']) {
         respond(false, 'Thumbnail: ' . $thumb['error']);
     }
-    $vid = Video::uploadVideo($_FILES['video']);
+    if ($uploadId !== '') {
+        // Video already arrived in chunks (admin/video-upload-chunk.php) and was validated there.
+        $claimed = ChunkUpload::claim($uploadId);
+        $vid = $claimed ? ['success' => true, 'duration' => 0] + $claimed
+                        : ['success' => false, 'error' => 'Uploaded video not found, please upload again.'];
+    } else {
+        $vid = Video::uploadVideo($_FILES['video']);
+    }
     if (!$vid['success']) {
         @unlink($thumb['path']);
         error_log('Admin video upload failed: ' . $vid['error']);
@@ -127,7 +136,8 @@ include __DIR__ . '/includes/header.php';
 
         <div class="form-group">
             <label for="video">Video file * <small>(MP4 recommended · max <?= e(formatBytes($limit)) ?>)</small></label>
-            <input class="form-control" type="file" id="video" name="video" accept="video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo" required>
+            <input class="form-control" type="file" id="video" name="video" accept="video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-msvideo,.mkv,.avi" required>
+            <small style="color:#7f8c8d;display:block">Large files are sent in small parts, so the hosting upload limit doesn't matter. Keep this page open until it finishes.</small>
             <small id="videoInfo" style="color:#7f8c8d"></small>
         </div>
 
@@ -221,7 +231,7 @@ include __DIR__ . '/includes/header.php';
         document.getElementById('duration').value = 0;
         if (!f) { info.textContent = ''; return; }
         if (f.size > LIMIT) {
-            info.textContent = '⚠ ' + fmt(f.size) + ' is larger than the server limit (' + fmt(LIMIT) + ').';
+            info.textContent = '⚠ ' + fmt(f.size) + ' is larger than the maximum (' + fmt(LIMIT) + ', Settings → Video).';
             info.style.color = '#c0392b';
             return;
         }
@@ -252,45 +262,93 @@ include __DIR__ . '/includes/header.php';
         img.style.display = 'block';
     });
 
-    form.addEventListener('submit', (e) => {
+    const CSRF = form.querySelector('[name=csrf_token]').value;
+    const CHUNK_URL = '/admin/video-upload-chunk.php';
+    let uploadId = null;
+
+    function post(url, data, onProgress) {
+        return new Promise((resolve) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            if (onProgress) xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) onProgress(ev.loaded); };
+            xhr.onload = () => {
+                let res = null;
+                try { res = JSON.parse(xhr.responseText); } catch (err) {}
+                if (!res) {
+                    res = { success: false, retry: xhr.status >= 500 || xhr.status === 0,
+                        error: xhr.status === 413 ? 'Server rejected the chunk as too large (Nginx client_max_body_size / PHP post_max_size).' : 'Server error (HTTP ' + xhr.status + ')' };
+                }
+                resolve(res);
+            };
+            xhr.onerror = () => resolve({ success: false, retry: true, error: 'Network error' });
+            xhr.send(data);
+        });
+    }
+    const fd = (obj) => { const f = new FormData(); f.append('csrf_token', CSRF); for (const k in obj) f.append(k, obj[k]); return f; };
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    function reset(btn) { btn.disabled = false; btn.textContent = '⬆ Upload Video'; }
+
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const f = videoInput.files[0];
-        if (f && f.size > LIMIT) { showAlert(false, 'Video is larger than the server limit (' + fmt(LIMIT) + ').'); return; }
+        if (!f) { showAlert(false, 'Choose a video file.'); return; }
+        if (f.size > LIMIT) { showAlert(false, 'Video is larger than the maximum (' + fmt(LIMIT) + '). Change it in Settings → Video.'); return; }
+        if (!thumbInput.files[0]) { showAlert(false, 'Choose a thumbnail.'); return; }
 
         const btn = document.getElementById('submitBtn');
         const bar = document.getElementById('progressBar');
         const text = document.getElementById('progressText');
-        btn.disabled = true;
-        btn.textContent = 'Uploading…';
+        const setPct = (done, note) => {
+            const pct = Math.min(100, Math.floor(done / f.size * 100));
+            bar.style.width = pct + '%'; bar.textContent = pct + '%';
+            text.textContent = fmt(done) + ' / ' + fmt(f.size) + (note ? ' · ' + note : '');
+        };
+        btn.disabled = true; btn.textContent = 'Uploading…';
         document.getElementById('progressWrap').style.display = 'block';
+        window.onbeforeunload = () => 'Upload in progress';
 
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', window.location.pathname);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.upload.onprogress = (ev) => {
-            if (!ev.lengthComputable) return;
-            const pct = Math.round(ev.loaded / ev.total * 100);
-            bar.style.width = pct + '%';
-            bar.textContent = pct + '%';
-            text.textContent = fmt(ev.loaded) + ' / ' + fmt(ev.total) + (pct === 100 ? ' · processing on server…' : '');
-        };
-        xhr.onload = () => {
+        // 1) start
+        const init = await post(CHUNK_URL, fd({ action: 'init', name: f.name, size: f.size }));
+        if (!init.success) { window.onbeforeunload = null; showAlert(false, init.error); return reset(btn); }
+        uploadId = init.upload_id;
+
+        // 2) chunks, each retried up to 5 times (mobile data / Wi-Fi drops)
+        const size = init.chunk_size;
+        for (let i = 0; i < init.total_chunks; i++) {
+            const blob = f.slice(i * size, Math.min(f.size, (i + 1) * size));
             let res = null;
-            try { res = JSON.parse(xhr.responseText); } catch (err) {}
-            if (res && res.success) {
-                window.location.href = res.redirect || '/admin/videos.php';
-                return;
+            for (let attempt = 1; attempt <= 5; attempt++) {
+                const data = fd({ action: 'chunk', upload_id: uploadId, index: i });
+                data.append('chunk', blob, 'chunk');
+                res = await post(CHUNK_URL, data, (loaded) => setPct(i * size + loaded, 'part ' + (i + 1) + '/' + init.total_chunks));
+                if (res.success || !res.retry) break;
+                setPct(i * size, 'connection problem, retrying (' + attempt + '/5)…');
+                await sleep(2000 * attempt);
             }
-            showAlert(false, res ? res.message : 'Upload failed (HTTP ' + xhr.status + '). The file may exceed the server limit.');
-            btn.disabled = false;
-            btn.textContent = '⬆ Upload Video';
-        };
-        xhr.onerror = () => {
-            showAlert(false, 'Network error during upload. Check your connection and try again.');
-            btn.disabled = false;
-            btn.textContent = '⬆ Upload Video';
-        };
-        xhr.send(new FormData(form));
+            if (!res.success) {
+                window.onbeforeunload = null;
+                post(CHUNK_URL, fd({ action: 'abort', upload_id: uploadId }));
+                showAlert(false, 'Upload failed at part ' + (i + 1) + ': ' + res.error);
+                return reset(btn);
+            }
+        }
+
+        // 3) join on server
+        setPct(f.size, 'processing on server…');
+        const fin = await post(CHUNK_URL, fd({ action: 'finish', upload_id: uploadId }));
+        if (!fin.success) { window.onbeforeunload = null; showAlert(false, fin.error); return reset(btn); }
+
+        // 4) save details + thumbnail (small request; the video itself is already on the server)
+        const details = new FormData(form);
+        details.delete('video');
+        details.append('upload_id', uploadId);
+        const saved = await post(window.location.pathname, details);
+        window.onbeforeunload = null;
+        if (saved.success) { window.location.href = saved.redirect || '/admin/videos.php'; return; }
+        showAlert(false, saved.message || saved.error || 'Could not save the video.');
+        reset(btn);
     });
 })();
 </script>
