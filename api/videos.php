@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/video.php';
 require_once __DIR__ . '/../includes/ads.php';
+require_once __DIR__ . '/../includes/telegram.php';
 
 header('Content-Type: application/json');
 
@@ -95,7 +96,8 @@ function getVideo($userId) {
         'video' => $video,
         'can_access' => $canAccess,
         'watch_history' => $watchHistory ?: null,
-        'stream_url' => $canAccess ? "/api/video-stream.php?id={$videoId}" : null
+        'stream_url' => $canAccess ? "/api/video-stream.php?id={$videoId}" : null,
+        'share_url' => tgConf('bot_username') !== '' ? (new Telegram())->watchLink($videoId) : null
     ]);
 }
 
@@ -163,14 +165,28 @@ function getTrendingVideos() {
 
 function getRelatedVideos() {
     $videoId = (int)($_GET['id'] ?? 0);
-    $videos = db()->fetchAll(
+    $limit = 12;
+    $db = db();
+    // Same category first, then fill up with popular videos so the list is never empty.
+    $videos = $db->fetchAll(
         "SELECT " . VIDEO_PUBLIC_COLS . " FROM videos v
          LEFT JOIN categories c ON v.category_id = c.id
          WHERE v.status = 'PUBLISHED' AND v.id != ?
            AND v.category_id = (SELECT category_id FROM videos WHERE id = ?)
-         ORDER BY v.views DESC LIMIT 10",
+         ORDER BY v.views DESC, v.published_at DESC LIMIT $limit",
         [$videoId, $videoId]
     );
+    if (count($videos) < $limit) {
+        $ids = array_merge([$videoId], array_map(fn($v) => (int)$v['id'], $videos));
+        $more = $db->fetchAll(
+            "SELECT " . VIDEO_PUBLIC_COLS . " FROM videos v
+             LEFT JOIN categories c ON v.category_id = c.id
+             WHERE v.status = 'PUBLISHED' AND v.id NOT IN (" . implode(',', array_fill(0, count($ids), '?')) . ")
+             ORDER BY v.views DESC, v.published_at DESC LIMIT " . ($limit - count($videos)),
+            $ids
+        );
+        $videos = array_merge($videos, $more);
+    }
     jsonResponse(true, ['videos' => $videos]);
 }
 
