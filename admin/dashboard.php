@@ -3,12 +3,7 @@
  * Admin Dashboard
  */
 
-define('ADMIN_PAGE', true);
-
-require_once __DIR__ . '/../includes/bootstrap.php';
-require_once __DIR__ . '/../includes/auth.php';
-
-Auth::requireAdmin();
+require_once __DIR__ . '/includes/admin-bootstrap.php';
 
 $db = db();
 $pageTitle = 'Dashboard';
@@ -52,6 +47,8 @@ $pendingWithdrawals = $db->fetchAll(
 
 include 'includes/header.php';
 ?>
+
+<?php renderFlash(); ?>
 
 <?php if (Auth::hasPermission('create')): ?>
 <div style="margin-bottom:20px;display:flex;gap:12px;flex-wrap:wrap;">

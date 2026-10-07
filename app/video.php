@@ -189,6 +189,7 @@
     <div id="errorContainer"></div>
 
     <div id="videoInfo" class="video-info" style="display:none;"></div>
+    <div id="bannerAd" class="ad-slot" style="display:none;padding:0 16px;background:var(--tg-theme-bg-color,#fff)"></div>
 
     <script src="/assets/js/app.js"></script>
     <script>
@@ -214,6 +215,7 @@
             document.getElementById('loadingContainer').style.display = 'none';
             displayVideoInfo(video);
 
+            BP.renderBanner('bannerAd');
             if (can_access && stream_url) {
                 showVideoPlayer(stream_url, watch_history);
             } else {
@@ -278,47 +280,31 @@
             }
         }
 
-        let currentAd = null;
         async function maybeShowAd() {
             // Server decides: premium users and frequency rules return no ad.
             const res = await BP.api('/api/videos.php?action=get_ad&type=INTERSTITIAL&video_id=' + videoId);
             if (!res.success || !res.data || !res.data.ad) return;
-            currentAd = res.data.ad;
+            const ad = res.data.ad;
             const video = document.getElementById('video');
             video.pause();
 
             const creative = document.getElementById('adCreative');
-            let html = '';
-            if (currentAd.image_url) {
-                html = `<img src="${BP.escapeHtml(currentAd.image_url)}" alt="Advertisement" style="max-width:100%;border-radius:8px;">`;
-            } else if (currentAd.video_url) {
-                html = `<video src="${BP.escapeHtml(currentAd.video_url)}" autoplay muted playsinline style="max-width:100%"></video>`;
-            } else {
-                html = `<div>${BP.escapeHtml(currentAd.name)}</div>`;
-            }
-            if (currentAd.destination_url && /^https:\/\//.test(currentAd.destination_url)) {
-                html = `<a href="#" id="adLink">${html}</a>`;
-            }
-            creative.innerHTML = html;
-            const link = document.getElementById('adLink');
-            if (link) link.addEventListener('click', (e) => {
-                e.preventDefault();
-                BP.post('/api/videos.php', { action: 'ad_click', impression_id: currentAd.impression_id });
-                if (BP.tg) BP.tg.openLink(currentAd.destination_url); else window.open(currentAd.destination_url, '_blank', 'noopener');
-            });
-
+            creative.innerHTML = '';
+            creative.appendChild(BP.buildAdCreative(ad, 250));
             document.getElementById('adContainer').style.display = 'block';
-            let countdown = 5;
+
+            let countdown = ad.skip_after;
             const timerEl = document.getElementById('adTimer');
-            timerEl.textContent = 'Advertisement - ' + countdown + 's';
-            const t = setInterval(() => {
+            const skip = document.getElementById('adSkip');
+            const tick = () => {
+                timerEl.textContent = countdown > 0 ? 'Advertisement · skip in ' + countdown + 's' : 'Advertisement';
+                if (countdown <= 0) { skip.style.display = 'block'; return true; }
                 countdown--;
-                timerEl.textContent = 'Advertisement - ' + Math.max(countdown, 0) + 's';
-                if (countdown <= 0) {
-                    clearInterval(t);
-                    document.getElementById('adSkip').style.display = 'block';
-                }
-            }, 1000);
+                return false;
+            };
+            if (!tick()) {
+                const t = setInterval(() => { if (tick()) clearInterval(t); }, 1000);
+            }
         }
 
         function closeAd() {

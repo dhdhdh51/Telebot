@@ -1,7 +1,7 @@
 # BharatPlay – Implementation Status
 
 What exists today, verified by an end-to-end run against MariaDB 10.5 + PHP 8.4
-(65 checks: auth, streaming, ledger, withdrawals, referrals, crons, admin login, installer).
+(191 checks across auth, streaming, ledger, withdrawals, referrals, crons, admin, Telegram, payments, ads).
 
 ## Implemented
 
@@ -15,17 +15,19 @@ What exists today, verified by an end-to-end run against MariaDB 10.5 + PHP 8.4
 - **Referrals**: trusted sources only, new users only, paid by cron after eligibility, exactly once.
 - **Admin**: installer (self-locking), login (CSRF, rate limit, lockout, session regeneration, constant-time miss), dashboard.
 - **Admin videos**: list/filter/search, upload with progress bar (MIME-checked, random filenames, thumbnail resize, browser-read duration), edit, publish/unpublish, post to Telegram channel, delete (role-gated, CSRF on every action).
-- **Mini App UI**: home (continue watching, trending, latest, deep-link routing) and player (resume, progress, interstitial ad).
+- **Mini App UI**: home, search, categories, profile (premium status, referral link), premium plans + payment, player (resume, progress, ads).
+- **Admin control**: Telegram (settings in DB, encrypted token, diagnostics, webhook button), Settings, Users (ban, give/remove premium), Subscriptions (plans, subscribers, payments), Ads (CRUD, image upload, network code in sandboxed iframe, stats), Categories.
+- **Payments**: `PaymentGatewayInterface` + Razorpay (order from DB price, checkout signature + server-side payment fetch, signed webhook, amount check, idempotent grant, renewal stacking).
 - **Cron**: subscription expiry, analytics aggregation, cleanup, referral payouts (CLI-only).
 
 ## Not implemented yet
 
 | Area | Missing |
 |---|---|
-| Admin pages | categories, telegram (webhook status page), users, subscriptions, ads, rewards, wallet adjustments, withdrawals queue, referrals, reports/charts, settings, audit log viewer |
-| Mini App pages | search, categories, profile, subscription, wallet, earn, withdrawal form |
-| APIs | `subscription.php`, `wallet.php`, `withdrawal.php`, `rewards.php`, `categories.php` (categories are served by `videos.php`) |
-| Payments | `PaymentGatewayInterface` + Razorpay/Cashfree/PayU adapters, order creation, signed webhook → subscription activation |
+| Admin pages | rewards, wallet adjustments, withdrawals queue, referrals, reports/charts, audit log viewer |
+| Mini App pages | wallet, earn, withdrawal form |
+| APIs | `wallet.php`, `withdrawal.php`, `rewards.php` |
+| Payments | Cashfree / PayU adapters (Razorpay done) |
 | Rewarded ads | provider adapter with signed server-side callbacks (deliberately disabled until one exists) |
 | Other | HLS/quality selector, admin 2FA, configurable role permissions, app-level error log viewer, request IDs |
 

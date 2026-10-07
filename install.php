@@ -32,8 +32,6 @@ if ($hasConfig) {
     require_once __DIR__ . '/config/config.php';
     $check(defined('SECRET_KEY') && strlen(SECRET_KEY) >= 32 && strpos(SECRET_KEY, 'CHANGE_THIS') === false,
         'SECRET_KEY is set (32+ random chars)', 'Set a long random SECRET_KEY in config.php');
-    $check(defined('TELEGRAM_BOT_TOKEN') && preg_match('/^\d+:[\w-]{30,}$/', TELEGRAM_BOT_TOKEN),
-        'TELEGRAM_BOT_TOKEN looks valid', 'Paste the token from @BotFather');
     try {
         $db = new PDO('mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4', DB_USER, DB_PASS,
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);

@@ -215,19 +215,11 @@ function getAd($userId) {
         jsonResponse(false, ['code' => 'INVALID_AD_TYPE'], 'Invalid ad type');
     }
 
-    $ad = Ads::getAdToShow($userId, $videoId, $adType);
+    $ad = Ads::getAdToShow($userId, $videoId, $adType === 'BANNER' ? 'BANNER' : 'INTERSTITIAL');
     if (!$ad) {
         jsonResponse(true, ['ad' => null], 'No ad available');
     }
-    jsonResponse(true, ['ad' => [
-        'id' => (int)$ad['id'],
-        'impression_id' => (int)$ad['impression_id'],
-        'type' => $ad['type'],
-        'image_url' => $ad['image_url'],
-        'video_url' => $ad['video_url'],
-        'destination_url' => $ad['destination_url'],
-        'name' => $ad['name']
-    ]]);
+    jsonResponse(true, ['ad' => Ads::toClient($ad)]);
 }
 
 function adClick($userId) {

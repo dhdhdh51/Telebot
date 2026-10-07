@@ -92,72 +92,129 @@ function timeAgo($datetime) {
 }
 
 /**
- * Get setting value
+ * Settings (DB table `settings`) — everything an admin can change from the panel.
+ * Values are cached per request; saveSetting() keeps the cache in sync.
  */
-function getSetting($category, $key, $default = null) {
-    static $cache = [];
-    $cacheKey = $category . '.' . $key;
-    
-    if (isset($cache[$cacheKey])) {
-        return $cache[$cacheKey];
+function &settingsCache() {
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        foreach (db()->fetchAll("SELECT category, `key`, value, type, is_secret FROM settings") as $row) {
+            $cache[$row['category'] . '.' . $row['key']] = $row;
+        }
     }
-    
-    $db = db();
-    $setting = $db->fetchOne(
-        "SELECT value, type FROM settings WHERE category = ? AND `key` = ?",
-        [$category, $key]
-    );
-    
-    if (!$setting) {
-        return $default;
+    return $cache;
+}
+
+function castSetting($value, $type) {
+    switch ($type) {
+        case 'INTEGER': return (int)$value;
+        case 'BOOLEAN': return $value === '1' || $value === 1 || $value === true;
+        case 'JSON':    return json_decode((string)$value, true);
     }
-    
-    $value = $setting['value'];
-    
-    // Cast to appropriate type
-    switch ($setting['type']) {
-        case 'INTEGER':
-            $value = (int)$value;
-            break;
-        case 'BOOLEAN':
-            $value = (bool)$value;
-            break;
-        case 'JSON':
-            $value = json_decode($value, true);
-            break;
-    }
-    
-    $cache[$cacheKey] = $value;
     return $value;
 }
 
 /**
- * Update setting value
+ * Get a setting. Secret settings are stored encrypted ("enc:...") and returned decrypted.
  */
-function updateSetting($category, $key, $value) {
-    $db = db();
-    
-    // Get setting type
-    $setting = $db->fetchOne(
-        "SELECT type FROM settings WHERE category = ? AND `key` = ?",
-        [$category, $key]
-    );
-    
-    if (!$setting) {
-        return false;
+function getSetting($category, $key, $default = null) {
+    $cache = &settingsCache();
+    $row = $cache[$category . '.' . $key] ?? null;
+    if (!$row || $row['value'] === null) {
+        return $default;
     }
-    
-    // Convert value based on type
-    if ($setting['type'] === 'JSON') {
+    $value = $row['value'];
+    if (is_string($value) && strpos($value, 'enc:') === 0) {
+        $dec = Security::decrypt(substr($value, 4));
+        $value = $dec === false ? '' : $dec;
+    }
+    return castSetting($value, $row['type']);
+}
+
+/**
+ * Create or update a setting (upsert, so new keys work on existing installs).
+ */
+function saveSetting($category, $key, $value, $type = null, $secret = null) {
+    $cache = &settingsCache();
+    $ck = $category . '.' . $key;
+    $type = $type ?? ($cache[$ck]['type'] ?? 'STRING');
+    $secret = $secret ?? (bool)($cache[$ck]['is_secret'] ?? false);
+
+    if ($type === 'JSON') {
         $value = json_encode($value);
-    } elseif ($setting['type'] === 'BOOLEAN') {
+    } elseif ($type === 'BOOLEAN') {
         $value = $value ? '1' : '0';
+    } else {
+        $value = (string)$value;
     }
-    
-    return $db->execute(
-        "UPDATE settings SET value = ?, updated_at = NOW() WHERE category = ? AND `key` = ?",
-        [$value, $category, $key]
-    ) > 0;
+    if ($secret && $value !== '') {
+        $value = 'enc:' . Security::encrypt($value);
+    }
+
+    db()->execute(
+        "INSERT INTO settings (category, `key`, value, type, is_secret) VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE value = VALUES(value), type = VALUES(type), is_secret = VALUES(is_secret), updated_at = NOW()",
+        [$category, $key, $value, $type, $secret ? 1 : 0]
+    );
+    $cache[$ck] = ['category' => $category, 'key' => $key, 'value' => $value, 'type' => $type, 'is_secret' => $secret ? 1 : 0];
+    return true;
+}
+
+/** Backwards-compatible alias. */
+function updateSetting($category, $key, $value) {
+    return saveSetting($category, $key, $value);
+}
+
+/**
+ * Telegram configuration: admin panel (DB) first, config.php constant as fallback.
+ * Normalises common input mistakes (e.g. "@MyBot", "https://t.me/mychannel").
+ */
+function tgConf($key) {
+    $consts = [
+        'bot_token' => 'TELEGRAM_BOT_TOKEN', 'bot_username' => 'TELEGRAM_BOT_USERNAME',
+        'channel_id' => 'TELEGRAM_CHANNEL_ID', 'mini_app_url' => 'TELEGRAM_MINI_APP_URL',
+        'webhook_secret' => 'TELEGRAM_WEBHOOK_SECRET', 'mini_app_short_name' => 'TELEGRAM_MINI_APP_SHORT_NAME',
+    ];
+    $value = trim((string)getSetting('telegram', $key, ''));
+    if ($value === '' && isset($consts[$key]) && defined($consts[$key])) {
+        $value = trim((string)constant($consts[$key]));
+        // Ignore untouched placeholders from config.example.php
+        if (preg_match('/^(your_|CHANGE_THIS)/', $value) || strpos($value, 'yourdomain.com') !== false) {
+            $value = '';
+        }
+    }
+    switch ($key) {
+        case 'bot_username':
+            $value = preg_replace('#^(https?://)?t\.me/#i', '', $value);
+            return ltrim($value, '@');
+        case 'channel_id':
+            if (preg_match('#^(?:https?://)?t\.me/([A-Za-z0-9_]{4,})/?$#i', $value, $m)) {
+                return '@' . $m[1];
+            }
+            if ($value !== '' && $value[0] !== '@' && $value[0] !== '-' && !ctype_digit($value)) {
+                return '@' . $value;
+            }
+            return $value;
+        case 'mini_app_url':
+            if ($value === '') {
+                $value = appUrl() . '/app';
+            }
+            return rtrim($value, '/');
+    }
+    return $value;
+}
+
+/** Public base URL of the site, e.g. https://bharatseo.site */
+function appUrl() {
+    $url = trim((string)getSetting('general', 'app_url', ''));
+    if ($url === '' || strpos($url, 'yourdomain.com') !== false) {
+        $url = defined('APP_URL') ? APP_URL : '';
+    }
+    if (($url === '' || strpos($url, 'yourdomain.com') !== false) && !empty($_SERVER['HTTP_HOST'])) {
+        $url = 'https://' . $_SERVER['HTTP_HOST'];
+    }
+    return rtrim($url, '/');
 }
 
 /**

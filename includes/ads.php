@@ -1,149 +1,110 @@
 <?php
 /**
- * Advertisement Management
+ * Advertisement selection and tracking. Everything is controlled from Admin → Ads
+ * (creatives, dates, priority) and Admin → Settings → Ads (on/off, frequency).
+ *
+ * Ad types:
+ *   BANNER       – strip on Home and below the player (every page view)
+ *   INTERSTITIAL – full card before a video starts (every N videos, skippable after X s)
+ *   VIDEO        – short video ad before the video (same frequency rule)
+ * Creative = image + link, video URL + link, or ad-network HTML/JS code
+ * (rendered in a sandboxed iframe by api/ad-frame.php).
+ * Premium users never get ads (checked here, server-side).
  */
 
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/functions.php';
 
 class Ads {
-    
-    /**
-     * Get ad to show based on rules and frequency
-     */
+
     public static function getAdToShow($userId, $videoId = null, $adType = 'INTERSTITIAL') {
         $db = db();
-        
-        // Check if ads are enabled
-        if (!getSetting('ads', 'enabled', true)) {
+
+        if (!getSetting('ads', 'enabled', true) || hasActiveSubscription($userId)) {
             return null;
         }
-        
-        // Check user subscription (premium users don't see ads)
-        if (hasActiveSubscription($userId)) {
+        if ($adType === 'BANNER' && !getSetting('ads', 'banner_enabled', true)) {
             return null;
         }
-        
-        // Get frequency setting
-        $frequency = (int)getSetting('ads', 'free_user_frequency', 3);
-        
-        // Check if user should see ad based on frequency
-        if ($frequency > 0) {
-            // Count videos watched since last ad
-            $lastAdTime = $db->fetchOne(
-                "SELECT MAX(created_at) as last_ad FROM ad_impressions WHERE user_id = ?",
-                [$userId]
-            );
-            
-            if ($lastAdTime && $lastAdTime['last_ad']) {
-                $videosSinceAd = $db->fetchOne(
-                    "SELECT COUNT(*) as count FROM video_views 
-                     WHERE user_id = ? AND created_at > ?",
-                    [$userId, $lastAdTime['last_ad']]
+
+        // Frequency applies to ads that interrupt playback, not to banners.
+        if ($adType !== 'BANNER') {
+            $frequency = (int)getSetting('ads', 'free_user_frequency', 3);
+            if ($frequency > 1) {
+                $last = $db->fetchOne(
+                    "SELECT MAX(ai.created_at) AS last_ad FROM ad_impressions ai JOIN ads a ON a.id = ai.ad_id
+                     WHERE ai.user_id = ? AND a.type IN ('INTERSTITIAL', 'VIDEO')",
+                    [$userId]
                 );
-                
-                if ($videosSinceAd['count'] < $frequency) {
-                    return null; // Not time for ad yet
+                if ($last && $last['last_ad']) {
+                    $since = $db->fetchOne(
+                        "SELECT COUNT(*) AS c FROM video_views WHERE user_id = ? AND created_at > ?",
+                        [$userId, $last['last_ad']]
+                    );
+                    if ($since['c'] < $frequency) {
+                        return null;
+                    }
                 }
             }
         }
-        
-        // Get active ads of specified type
-        $ads = $db->fetchAll(
-            "SELECT * FROM ads 
-             WHERE type = ? AND status = 'ACTIVE' 
-             AND (start_date IS NULL OR start_date <= NOW()) 
-             AND (end_date IS NULL OR end_date >= NOW()) 
-             ORDER BY priority DESC, RAND() 
-             LIMIT 1",
-            [$adType]
+
+        $typeSql = $adType === 'BANNER' ? "type = 'BANNER'" : "type IN ('INTERSTITIAL', 'VIDEO')";
+        $ad = $db->fetchOne(
+            "SELECT * FROM ads
+             WHERE $typeSql AND status = 'ACTIVE'
+             AND (start_date IS NULL OR start_date <= NOW())
+             AND (end_date IS NULL OR end_date >= NOW())
+             ORDER BY priority DESC, RAND()
+             LIMIT 1"
         );
-        
-        if (empty($ads)) {
+        if (!$ad) {
             return null;
         }
-        
-        $ad = $ads[0];
-        
-        // Log impression
+
         $db->execute(
-            "INSERT INTO ad_impressions (ad_id, user_id, video_id, ip_address, user_agent) 
-             VALUES (?, ?, ?, ?, ?)",
-            [
-                $ad['id'],
-                $userId,
-                $videoId,
-                Security::getClientIP(),
-                Security::getUserAgent()
-            ]
+            "INSERT INTO ad_impressions (ad_id, user_id, video_id, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)",
+            [$ad['id'], $userId, $videoId, Security::getClientIP(), Security::getUserAgent()]
         );
-        
-        $impressionId = $db->lastInsertId();
-        
-        // Update ad stats
+        $ad['impression_id'] = (int)$db->lastInsertId();
         $db->execute("UPDATE ads SET impressions = impressions + 1 WHERE id = ?", [$ad['id']]);
-        
-        // Add impression ID to ad data
-        $ad['impression_id'] = $impressionId;
-        
         return $ad;
     }
-    
-    /**
-     * Track ad click
-     */
+
+    /** Public, client-safe representation of an ad. */
+    public static function toClient(array $ad) {
+        return [
+            'id' => (int)$ad['id'],
+            'impression_id' => (int)$ad['impression_id'],
+            'type' => $ad['type'],
+            'name' => $ad['name'],
+            'image_url' => $ad['image_url'] ?: null,
+            'video_url' => $ad['video_url'] ?: null,
+            'destination_url' => $ad['destination_url'] ?: null,
+            'html_frame' => trim((string)$ad['creative_html']) !== '' ? '/api/ad-frame.php?id=' . (int)$ad['id'] : null,
+            'skip_after' => max(0, (int)getSetting('ads', 'skip_after_seconds', 5)),
+        ];
+    }
+
     public static function trackClick($adId, $userId, $impressionId = null) {
         $db = db();
-        
         $db->execute(
-            "INSERT INTO ad_clicks (ad_id, user_id, impression_id, ip_address, user_agent) 
-             VALUES (?, ?, ?, ?, ?)",
-            [
-                $adId,
-                $userId,
-                $impressionId,
-                Security::getClientIP(),
-                Security::getUserAgent()
-            ]
+            "INSERT INTO ad_clicks (ad_id, user_id, impression_id, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)",
+            [$adId, $userId, $impressionId, Security::getClientIP(), Security::getUserAgent()]
         );
-        
-        // Update ad stats
         $db->execute("UPDATE ads SET clicks = clicks + 1 WHERE id = ?", [$adId]);
-        
-        // Mark impression as clicked
         if ($impressionId) {
             $db->execute("UPDATE ad_impressions SET clicked = 1 WHERE id = ?", [$impressionId]);
         }
-        
         return true;
     }
-    
-    /**
-     * Track ad completion (for video ads)
-     */
+
     public static function trackCompletion($adId, $impressionId) {
         $db = db();
-        
-        // Update ad stats
         $db->execute("UPDATE ads SET completions = completions + 1 WHERE id = ?", [$adId]);
-        
-        // Mark impression as completed
         if ($impressionId) {
             $db->execute("UPDATE ad_impressions SET completed = 1 WHERE id = ?", [$impressionId]);
         }
-        
         return true;
-    }
-    
-    /**
-     * Get rewarded ad (if available)
-     */
-    public static function getRewardedAd($userId) {
-        // Check if rewarded ads are enabled
-        if (!getSetting('ads', 'rewarded_ads_enabled', true)) {
-            return null;
-        }
-        
-        return self::getAdToShow($userId, null, 'REWARDED');
     }
 }

@@ -245,6 +245,7 @@ CREATE TABLE `subscriptions` (
 CREATE TABLE `payments` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` INT UNSIGNED NOT NULL,
+  `plan_id` INT UNSIGNED NULL,
   `payment_id` VARCHAR(100) NULL COMMENT 'Gateway payment ID',
   `order_id` VARCHAR(100) NOT NULL,
   `gateway` VARCHAR(50) NOT NULL,
@@ -262,6 +263,7 @@ CREATE TABLE `payments` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `order_id` (`order_id`),
   KEY `user_id` (`user_id`),
+  KEY `plan_id` (`plan_id`),
   KEY `payment_id` (`payment_id`),
   KEY `status` (`status`),
   KEY `gateway` (`gateway`),
@@ -639,6 +641,9 @@ INSERT INTO `settings` (`category`, `key`, `value`, `type`, `is_secret`, `descri
 ('telegram', 'bot_username', '', 'STRING', 0, 'Telegram Bot Username'),
 ('telegram', 'channel_id', '', 'STRING', 0, 'Telegram Channel/Group ID for posting'),
 ('telegram', 'mini_app_url', '', 'STRING', 0, 'Telegram Mini App URL'),
+('telegram', 'webhook_secret', '', 'STRING', 1, 'Webhook secret token'),
+('telegram', 'mini_app_short_name', '', 'STRING', 0, 'Direct link Mini App short name'),
+('system', 'schema_version', '1', 'INTEGER', 0, 'Database schema version'),
 
 ('video', 'max_upload_size', '524288000', 'INTEGER', 0, 'Maximum video upload size in bytes (500MB)'),
 ('video', 'allowed_formats', '["mp4", "mkv", "avi", "mov", "webm"]', 'JSON', 0, 'Allowed video formats'),
@@ -647,10 +652,13 @@ INSERT INTO `settings` (`category`, `key`, `value`, `type`, `is_secret`, `descri
 
 ('ads', 'enabled', '1', 'BOOLEAN', 0, 'Enable advertisements'),
 ('ads', 'free_user_frequency', '3', 'INTEGER', 0, 'Show ad after N videos for free users'),
+('ads', 'banner_enabled', '1', 'BOOLEAN', 0, 'Show banner ads'),
+('ads', 'skip_after_seconds', '5', 'INTEGER', 0, 'Interstitial skip delay'),
 ('ads', 'rewarded_ads_enabled', '0', 'BOOLEAN', 0, 'Enable rewarded ads (only works with a server-verified provider)'),
 ('ads', 'rewarded_provider', '', 'STRING', 0, 'Rewarded ad provider with signed server-side callbacks. Empty = Earn disabled'),
 
-('payment', 'gateway', 'manual', 'STRING', 0, 'Active payment gateway (manual, razorpay, cashfree)'),
+('payment', 'gateway', '', 'STRING', 0, 'Active payment gateway (empty = off, razorpay)'),
+('payment', 'razorpay_webhook_secret', '', 'STRING', 1, 'Razorpay webhook secret'),
 ('payment', 'currency', 'INR', 'STRING', 0, 'Payment currency'),
 ('payment', 'razorpay_key_id', '', 'STRING', 1, 'Razorpay Key ID'),
 ('payment', 'razorpay_key_secret', '', 'STRING', 1, 'Razorpay Key Secret'),

@@ -28,9 +28,8 @@ DirectoryIndex index.php
     Header always set X-Content-Type-Options "nosniff"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
     Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
-    # No X-Frame-Options: Telegram Web/Desktop embed the Mini App in an iframe.
-    # frame-ancestors restricts embedding to Telegram's web clients instead.
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; media-src 'self' blob: https:; connect-src 'self'; frame-ancestors 'self' https://web.telegram.org https://*.telegram.org; base-uri 'self'; form-action 'self'"
+    # No X-Frame-Options here: Telegram Web/Desktop embed the Mini App in an iframe.
+    # Content-Security-Policy (incl. frame-ancestors) is sent per page by PHP: see setCsp() in includes/bootstrap.php.
 </IfModule>
 
 <IfModule mod_deflate.c>
