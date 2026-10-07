@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Watch Video - BharatPlay</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/assets/css/app.css">
     <style>
         * {
             margin: 0;
@@ -14,8 +15,10 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #000;
-            color: #fff;
+            /* Theme colour (not black) so the area below the player isn't an empty black block. */
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            min-height: 100vh;
         }
         
         .video-container {
@@ -24,11 +27,26 @@
             background: #000;
         }
         
+        .video-container { position: sticky; top: 0; z-index: 50; }
         video {
             width: 100%;
-            max-height: 300px;
+            aspect-ratio: 16 / 9;
+            max-height: 45vh;
             display: block;
+            background: #000;
         }
+        #loadingContainer { aspect-ratio: 16 / 9; max-height: 45vh; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: #ccc; background: #000; }
+        .actions { display: flex; gap: 8px; padding: 0 16px 14px; }
+        .actions button, .actions a { flex: 1; padding: 10px 6px; border-radius: 10px; border: 0; font-size: 13px; font-weight: 600;
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0); color: var(--tg-theme-text-color, #000); text-decoration: none; text-align: center; cursor: pointer; }
+        .related { padding: 4px 16px 32px; }
+        .related h3 { font-size: 16px; margin: 6px 0 12px; }
+        .rel-info { padding: 8px; }
+        .rel-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical; overflow: hidden; }
+        .desc-toggle { color: var(--tg-theme-link-color, #3390ec); font-size: 13px; margin-top: 6px; cursor: pointer; display: none; }
+        .video-description.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         
         .video-info {
             background: var(--tg-theme-bg-color, #ffffff);
@@ -189,7 +207,16 @@
     <div id="errorContainer"></div>
 
     <div id="videoInfo" class="video-info" style="display:none;"></div>
-    <div id="bannerAd" class="ad-slot" style="display:none;padding:0 16px;background:var(--tg-theme-bg-color,#fff)"></div>
+    <div class="actions" id="actions" style="display:none">
+        <button id="shareBtn">📤 Share</button>
+        <a href="/app/subscription.php" id="premiumBtn" style="display:none">💎 Go ad-free</a>
+        <a href="/app/index.php">🏠 Home</a>
+    </div>
+    <div id="bannerAd" class="ad-slot" style="display:none;padding:0 16px"></div>
+    <div class="related" id="relatedBox" style="display:none">
+        <h3>More videos</h3>
+        <div id="relatedGrid" class="video-grid"></div>
+    </div>
 
     <script>var adsgramFailed = false;</script>
     <script src="https://sad.adsgram.ai/js/sad.min.js" async onerror="adsgramFailed = true"></script>
@@ -218,6 +245,8 @@
             displayVideoInfo(video);
 
             BP.renderBanner('bannerAd');
+            setupActions(res.data.share_url, video);
+            loadRelated();
             if (can_access && stream_url) {
                 showVideoPlayer(stream_url, watch_history);
             } else {
@@ -234,9 +263,41 @@
             const el = document.getElementById('videoInfo');
             el.innerHTML = `
                 <div class="video-title">${BP.escapeHtml(v.title)}</div>
-                <div class="video-stats">${BP.formatViews(v.views)} views • ${BP.escapeHtml(v.category_name || '')}</div>
-                <div class="video-description">${BP.escapeHtml(v.description || '')}</div>`;
+                <div class="video-stats">${BP.formatViews(v.views)} views • ${BP.escapeHtml(v.category_name || '')}${v.access_type === 'PREMIUM' ? ' • 💎 Premium' : ''}</div>
+                <div class="video-description clamp" id="desc">${BP.escapeHtml(v.description || '')}</div>
+                <div class="desc-toggle" id="descToggle">Show more</div>`;
             el.style.display = 'block';
+            const d = document.getElementById('desc'), t = document.getElementById('descToggle');
+            if (d.scrollHeight > d.clientHeight + 2) {
+                t.style.display = 'block';
+                t.onclick = () => { const c = d.classList.toggle('clamp'); t.textContent = c ? 'Show more' : 'Show less'; };
+            }
+        }
+
+        function setupActions(shareUrl, v) {
+            document.getElementById('actions').style.display = 'flex';
+            const btn = document.getElementById('shareBtn');
+            if (!shareUrl) { btn.style.display = 'none'; }
+            btn.onclick = () => {
+                const url = 'https://t.me/share/url?url=' + encodeURIComponent(shareUrl) + '&text=' + encodeURIComponent('🎬 ' + v.title);
+                BP.openExternal(url);
+            };
+            BP.ensureAuth().then(u => { if (!u.is_premium) document.getElementById('premiumBtn').style.display = 'block'; }).catch(() => {});
+        }
+
+        async function loadRelated() {
+            const r = await BP.api('/api/videos.php?action=related&id=' + videoId);
+            if (!r.success || !r.data.videos.length) return;
+            document.getElementById('relatedGrid').innerHTML = r.data.videos.map(v => `
+                <a href="/app/video.php?id=${encodeURIComponent(v.id)}" class="video-card">
+                    <img src="${BP.thumbUrl(v.thumbnail)}" alt="${BP.escapeHtml(v.title)}" class="video-thumbnail" loading="lazy">
+                    <div class="rel-info">
+                        <div class="rel-title">${BP.escapeHtml(v.title)}</div>
+                        <div class="video-meta">${BP.formatViews(v.views)} views</div>
+                        <span class="video-badge badge-${v.access_type === 'PREMIUM' ? 'premium' : 'free'}">${v.access_type === 'PREMIUM' ? 'PREMIUM' : 'FREE'}</span>
+                    </div>
+                </a>`).join('');
+            document.getElementById('relatedBox').style.display = 'block';
         }
 
         async function showVideoPlayer(streamUrl, history) {
