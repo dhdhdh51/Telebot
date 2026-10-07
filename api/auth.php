@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/telegram.php';
+require_once __DIR__ . '/../includes/subscription.php';
 
 header('Content-Type: application/json');
 
@@ -40,8 +41,10 @@ function userPayload($userId) {
         'first_name' => $user['first_name'],
         'last_name' => $user['last_name'],
         'photo_url' => $user['photo_url'],
-        'is_premium' => hasActiveSubscription($userId),
-        'referral_link' => 'https://t.me/' . TELEGRAM_BOT_USERNAME . '?start=ref_' . $user['referral_code'],
+        'is_premium' => ($sub = Subscription::active($userId)) !== null,
+        'premium_plan' => $sub['plan_name'] ?? null,
+        'premium_until' => $sub['end_date'] ?? null,
+        'referral_link' => 'https://t.me/' . tgConf('bot_username') . '?start=ref_' . $user['referral_code'],
         'wallet_balance' => getWalletBalance($userId)
     ];
 }

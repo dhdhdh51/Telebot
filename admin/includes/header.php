@@ -328,7 +328,8 @@ $currentAdmin = Auth::getCurrentAdmin();
                     'settings' => ['⚙️', 'Settings'], 'logs' => ['📋', 'Audit Logs'],
                 ];
                 foreach ($menu as $page => [$icon, $label]):
-                    if (!file_exists(__DIR__ . "/../{$page}.php")) continue; ?>
+                    if (!file_exists(__DIR__ . "/../{$page}.php")) continue;
+                    if (in_array($page, ['telegram', 'settings'], true) && ($currentAdmin['role'] ?? '') !== 'SUPER_ADMIN') continue; ?>
                 <a href="/admin/<?php echo $page; ?>.php" class="<?php echo ($currentPage === $page || ($page === 'videos' && strpos($currentPage, 'video-') === 0)) ? 'active' : ''; ?>">
                     <span><?php echo $icon; ?></span> <?php echo $label; ?>
                 </a>

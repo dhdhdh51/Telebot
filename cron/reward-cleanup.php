@@ -23,6 +23,9 @@ echo "Expired $n unverified reward transactions\n";
 $n = $db->execute("DELETE FROM notifications WHERE read_status = 1 AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
 echo "Deleted $n old read notifications\n";
 
+$n = $db->execute("UPDATE payments SET status = 'FAILED' WHERE status = 'PENDING' AND created_at < DATE_SUB(NOW(), INTERVAL 1 DAY)");
+echo "Expired $n abandoned payment orders\n";
+
 // File-based rate-limit counters
 $removed = 0;
 foreach (glob(sys_get_temp_dir() . '/bharatplay_rate_*.tmp') ?: [] as $f) {

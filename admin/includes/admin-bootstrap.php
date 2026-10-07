@@ -8,8 +8,29 @@ define('ADMIN_PAGE', true);
 require_once __DIR__ . '/../../includes/bootstrap.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/csrf.php';
+require_once __DIR__ . '/../../includes/schema.php';
+
+// The admin panel must never be framed (clickjacking).
+setCsp([], "'none'");
+header('X-Frame-Options: DENY');
 
 Auth::requireAdmin();
+Schema::migrate();
+
+/** Telegram, settings, payment keys and ad scripts are SUPER_ADMIN only. */
+function requireSuperAdmin() {
+    $admin = Auth::getCurrentAdmin();
+    if (!$admin || $admin['role'] !== 'SUPER_ADMIN') {
+        flash('error', 'Only a SUPER_ADMIN can open that page.');
+        header('Location: /admin/dashboard.php');
+        exit;
+    }
+}
+
+function isSuperAdmin() {
+    $admin = Auth::getCurrentAdmin();
+    return $admin && $admin['role'] === 'SUPER_ADMIN';
+}
 
 function flash($type = null, $message = null) {
     if ($type !== null) {

@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/includes/admin-bootstrap.php';
 require_once __DIR__ . '/../includes/video.php';
+require_once __DIR__ . '/../includes/telegram.php';
 
 requirePermission('create', '/admin/videos.php');
 
@@ -99,7 +100,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         respond(false, 'Could not save the video. Check logs/php-errors.log.');
     }
 
-    respond(true, 'Video uploaded' . ($status === 'PUBLISHED' ? ' and published. You can now post it to Telegram.' : ' as draft.'), '/admin/videos.php');
+    $msg = 'Video uploaded' . ($status === 'PUBLISHED' ? ' and published.' : ' as draft.');
+    if ($status === 'PUBLISHED' && !empty($_POST['post_telegram'])) {
+        $tgResult = (new Telegram())->publishVideo(Video::getById($videoId));
+        if (!empty($tgResult['ok'])) {
+            logAudit('VIDEO_PUBLISHED_TELEGRAM', "Posted video #$videoId to Telegram", 'video', $videoId);
+            $msg .= ' Posted to Telegram ✔';
+        } else {
+            $msg .= ' Telegram post FAILED: ' . ($tgResult['description'] ?? 'unknown') . ' (fix in Admin → Telegram, then use "Post to Telegram").';
+        }
+    }
+    respond(true, $msg, '/admin/videos.php');
 }
 
 $pageTitle = 'Upload Video';
@@ -165,6 +176,12 @@ include __DIR__ . '/includes/header.php';
         <div class="form-group">
             <label for="tags">Tags <small>(comma separated, used in search)</small></label>
             <input class="form-control" id="tags" name="tags" maxlength="500" placeholder="comedy, hindi, 2026">
+        </div>
+
+        <div class="form-group">
+            <label style="display:flex;gap:8px;align-items:center;font-weight:normal">
+                <input type="checkbox" name="post_telegram" value="1" checked> 📱 Post to Telegram channel after upload (only if status is PUBLISHED)
+            </label>
         </div>
 
         <div id="progressWrap" style="display:none;margin-bottom:16px;">

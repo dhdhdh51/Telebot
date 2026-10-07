@@ -33,17 +33,18 @@ PHP 8.2 + MySQL/MariaDB Telegram Mini App for cPanel/shared hosting (no Node.js,
    environment and asks for the database password from `config.php` (proving you own
    the install) before creating a SUPER_ADMIN. It locks itself once an admin exists.
    **Delete `install.php` afterwards.**
-7. **Telegram bot** (@BotFather):
-   - `/newbot` → copy the token into `config.php`.
-   - *Bot Settings → Configure Mini App* → set the Main Mini App URL to
-     `https://yourdomain.com/app/`. Channel posts open it via
-     `https://t.me/<bot>?startapp=v<videoId>`. (If you created a named app with `/newapp`
-     instead, put its short name in `TELEGRAM_MINI_APP_SHORT_NAME`.)
-   - Add the bot as an **admin of your channel** with permission to post.
-8. **Webhook** (for `/start` and referral links): open once in a browser
-   ```
-   https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://yourdomain.com/bot/webhook.php&secret_token=<TELEGRAM_WEBHOOK_SECRET>
-   ```
+7. **Telegram** – everything is set from **Admin → Telegram** (no config editing needed):
+   - Paste the bot token from @BotFather, your channel (`@channel` or `-100…`), keep Mini App URL
+     `https://<your-domain>/app`, click **Save & check**. The check tells you exactly what is wrong
+     (bad token, channel not found, bot not admin, webhook missing) and how to fix it.
+   - Click **🔗 Set webhook** (needed for `/start`, referrals and the WATCH button).
+   - Recommended: @BotFather → `/mybots` → bot → *Bot Settings → Configure Mini App → Enable* →
+     URL `https://<your-domain>/app/`. Then channel posts open the app directly; without it the
+     WATCH button opens the bot, which replies with a "▶ WATCH VIDEO" button.
+   - Add the bot as **admin of the channel** with *Post Messages*.
+8. **Payments** – **Admin → Settings → Payment**: choose Razorpay, paste Key ID / Key Secret and a
+   webhook secret. In Razorpay → Webhooks add `https://<your-domain>/api/payment-webhook.php?gateway=razorpay`
+   (events `payment.captured`, `order.paid`, same secret). Plans/prices: **Admin → Subscriptions**.
 9. **Cron jobs** (cPanel → *Cron Jobs*; check your PHP path with `which php`, often `/usr/local/bin/php`):
    ```
    0 * * * *   /usr/local/bin/php /home/USER/public_html/cron/subscription-expiry.php
@@ -51,6 +52,7 @@ PHP 8.2 + MySQL/MariaDB Telegram Mini App for cPanel/shared hosting (no Node.js,
    0 1 * * *   /usr/local/bin/php /home/USER/public_html/cron/analytics.php
    0 3 * * *   /usr/local/bin/php /home/USER/public_html/cron/reward-cleanup.php
    ```
+   (Steps 7–8 used to need `config.php` edits; values set in the admin panel now take priority.)
 10. **Force HTTPS**: uncomment the two `RewriteCond/RewriteRule` lines at the top of `.htaccess`.
 
 ## Uploading and publishing videos
@@ -65,6 +67,32 @@ PHP 8.2 + MySQL/MariaDB Telegram Mini App for cPanel/shared hosting (no Node.js,
 
 Shared hosts often cap uploads at 50–256 MB and time out long uploads. If a file is too big,
 compress it (e.g. 720p H.264, ~1–2 Mbps) before uploading.
+
+## Admin panel
+
+| Page | Controls |
+|---|---|
+| Videos | upload (progress bar, optional auto-post to Telegram), edit, publish, 📱 post to channel, delete |
+| Categories | add / rename / reorder / hide |
+| Telegram | bot token, channel, Mini App URL, **Check everything**, set webhook, test messages, post errors |
+| Users | search, ban/unban, give premium for N days, remove premium |
+| Subscriptions | plans (price, days, features, popular), active subscribers, payments |
+| Ads | banner / interstitial / video ads: own image+link or ad-network code, schedule, pause, impressions/clicks/CTR |
+| Settings | ads on/off & frequency, payment gateway keys, withdrawal limits, referral bonus |
+
+Telegram and Settings are SUPER_ADMIN only; MODERATOR cannot delete or add ad scripts.
+
+### Ads
+- **Own ads**: Admin → Ads → New ad → upload image, set the click link (https).
+- **Ad networks** (Adsterra, Monetag, …): paste their banner/HTML code in "Ad network code". It runs in
+  a sandboxed iframe (`api/ad-frame.php`) that cannot read user sessions.
+- BANNER shows on Home and under the player; INTERSTITIAL/VIDEO before a video every N videos
+  (Settings → Ads). Premium users never get ads (enforced on the server).
+
+### Subscriptions
+User taps 💎 Premium → picks a plan → payment page opens in the phone browser (so UPI apps work) →
+Razorpay → server verifies the signature **and** fetches the payment from Razorpay → premium is
+granted (renewals add days). The webhook is a second, independent confirmation; both are idempotent.
 
 ## How it works
 
