@@ -37,6 +37,24 @@
         }
         #loadingContainer { aspect-ratio: 16 / 9; max-height: 45vh; display: flex; flex-direction: column;
             align-items: center; justify-content: center; color: #ccc; background: #000; }
+        /* ---- Full screen ---- */
+        #videoPlayer { position: relative; }
+        .fs-btn { position: absolute; right: 10px; top: 10px; z-index: 5; width: 40px; height: 40px; border: 0; border-radius: 50%;
+            background: rgba(0,0,0,.55); color: #fff; font-size: 20px; line-height: 40px; cursor: pointer; }
+        .fs-bar { display: none; position: absolute; z-index: 6; gap: 10px;
+            top: calc(10px + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); right: 12px; }
+        .fs-bar button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 20px; cursor: pointer; }
+        body.is-full { overflow: hidden; background: #000; }
+        body.is-full .video-container { position: fixed; inset: 0; z-index: 1000; background: #000; }
+        body.is-full #videoPlayer { position: fixed; inset: 0; display: flex !important; align-items: center; justify-content: center; background: #000; }
+        body.is-full video { width: 100vw; height: 100vh; max-height: none; aspect-ratio: auto; object-fit: contain; }
+        body.is-full .fs-btn, body.is-full .back-button { display: none; }
+        body.is-full .fs-bar { display: flex; }
+        /* Landscape video on a phone held upright: rotate the player 90° to use the whole screen. */
+        body.is-full.rotated video { width: 100vh; height: 100vw; transform: rotate(90deg); }
+        body.is-full.rotated .fs-bar { top: auto; right: auto; left: 12px;
+            bottom: calc(12px + var(--tg-safe-area-inset-bottom, 0px)); transform: rotate(90deg); }
+
         .actions { display: flex; gap: 8px; padding: 0 16px 14px; }
         .actions button, .actions a { flex: 1; padding: 10px 6px; border-radius: 10px; border: 0; font-size: 13px; font-weight: 600;
             background: var(--tg-theme-secondary-bg-color, #f0f0f0); color: var(--tg-theme-text-color, #000); text-decoration: none; text-align: center; cursor: pointer; }
@@ -193,7 +211,12 @@
             <div>Loading video...</div>
         </div>
         <div id="videoPlayer" style="display:none;">
-            <video id="video" controls playsinline></video>
+            <video id="video" controls playsinline webkit-playsinline controlslist="nofullscreen"></video>
+            <button class="fs-btn" id="fsBtn" type="button" aria-label="Full screen" title="Full screen">⛶</button>
+            <div class="fs-bar" id="fsBar">
+                <button type="button" id="fsRotate" aria-label="Rotate">🔄</button>
+                <button type="button" id="fsExit" aria-label="Exit full screen">✕</button>
+            </div>
         </div>
         <div id="premiumLock" style="display:none;"></div>
     </div>
@@ -402,6 +425,71 @@
             }
         }
 
+        // ---------- Full screen ----------
+        // Order: Telegram fullscreen (Bot API 8.0+) → browser Fullscreen API → iOS native player.
+        // A CSS "full window" mode is always applied too, so it works even inside old Telegram versions.
+        let isFull = false;
+        const tgFs = () => BP.tg && BP.tg.isVersionAtLeast && BP.tg.isVersionAtLeast('8.0') && typeof BP.tg.requestFullscreen === 'function';
+
+        function autoRotate() {
+            const v = document.getElementById('video');
+            const portrait = window.innerHeight > window.innerWidth;
+            const wide = v.videoWidth && v.videoHeight ? v.videoWidth > v.videoHeight : true;
+            document.body.classList.toggle('rotated', isFull && portrait && wide);
+        }
+
+        function enterFullscreen() {
+            const v = document.getElementById('video');
+            const box = document.getElementById('videoPlayer');
+            isFull = true;
+            document.body.classList.add('is-full');
+            autoRotate();
+            try {
+                if (tgFs()) {
+                    BP.tg.requestFullscreen();
+                } else if (box.requestFullscreen) {
+                    box.requestFullscreen().then(() => {
+                        // Real landscape where the browser allows it; then no CSS rotation is needed.
+                        if (screen.orientation && screen.orientation.lock) {
+                            screen.orientation.lock('landscape').then(() => document.body.classList.remove('rotated')).catch(() => {});
+                        }
+                    }).catch(() => {});
+                } else if (box.webkitRequestFullscreen) {
+                    box.webkitRequestFullscreen();
+                } else if (v.webkitEnterFullscreen) {
+                    v.webkitEnterFullscreen(); // iPhone: native full-screen player
+                }
+            } catch (e) { /* CSS mode still active */ }
+            v.play().catch(() => {});
+        }
+
+        function exitFullscreen() {
+            if (!isFull) return;
+            isFull = false;
+            document.body.classList.remove('is-full', 'rotated');
+            try {
+                if (tgFs() && BP.tg.isFullscreen) BP.tg.exitFullscreen();
+                if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+                else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
+                if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+            } catch (e) {}
+        }
+
+        document.getElementById('fsBtn').addEventListener('click', enterFullscreen);
+        document.getElementById('fsExit').addEventListener('click', exitFullscreen);
+        document.getElementById('fsRotate').addEventListener('click', () => document.body.classList.toggle('rotated'));
+        document.getElementById('video').addEventListener('dblclick', () => (isFull ? exitFullscreen() : enterFullscreen()));
+        document.getElementById('video').addEventListener('loadedmetadata', autoRotate);
+        window.addEventListener('resize', () => { if (isFull) autoRotate(); });
+        // Leaving fullscreen with the system gesture / Esc must also leave our CSS mode.
+        document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && !tgFs()) exitFullscreen(); });
+        document.addEventListener('webkitfullscreenchange', () => { if (!document.webkitFullscreenElement && !tgFs()) exitFullscreen(); });
+        document.getElementById('video').addEventListener('webkitendfullscreen', () => exitFullscreen());
+        if (BP.tg && BP.tg.onEvent) {
+            BP.tg.onEvent('fullscreenChanged', () => { if (!BP.tg.isFullscreen && isFull) exitFullscreen(); });
+            // fullscreenFailed: e.g. unsupported device — the CSS full-window mode stays on.
+        }
+
         function goBack() {
             saveProgress();
             if (history.length > 1) history.back(); else window.location.href = '/app/index.php';
@@ -410,7 +498,7 @@
         // Telegram's own back button
         if (BP.tg && BP.tg.BackButton) {
             BP.tg.BackButton.show();
-            BP.tg.BackButton.onClick(goBack);
+            BP.tg.BackButton.onClick(() => (isFull ? exitFullscreen() : goBack()));
         }
 
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveProgress(); });
