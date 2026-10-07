@@ -93,7 +93,8 @@
     if (ad.html_frame) {
       const f = document.createElement('iframe');
       f.src = ad.html_frame;
-      f.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox');
+      // Different origin (ad subdomain) → storage is safe to allow; same site → fully opaque sandbox.
+      f.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox' + (ad.frame_storage ? ' allow-same-origin' : ''));
       f.setAttribute('loading', 'lazy');
       f.setAttribute('scrolling', 'no');
       f.style.height = (height || 100) + 'px';

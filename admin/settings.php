@@ -18,12 +18,16 @@ $sections = [
         ['ads', 'banner_enabled', 'Show banner ads', 'bool', 'Banner on Home and below the player'],
         ['ads', 'free_user_frequency', 'Video ad every N videos', 'int', '1 = before every video, 3 = every 3rd video'],
         ['ads', 'skip_after_seconds', 'Allow skip after (seconds)', 'int', 'For interstitial / video ads'],
+        ['ads', 'frame_origin', 'Ad subdomain for network code (optional)', 'url', 'If Adsterra/Monetag code shows blank: cPanel → Domains → create ads.yourdomain with the SAME document root as the site, enable SSL, enter https://ads.yourdomain here'],
     ],
     'Payment' => [
         ['payment', 'gateway', 'Payment gateway', 'gateway', 'Choose "None" to disable online payments (you can still grant premium from Users)'],
         ['payment', 'razorpay_key_id', 'Razorpay Key ID', 'text', 'Razorpay Dashboard → Account & Settings → API Keys (rzp_live_… or rzp_test_…)'],
         ['payment', 'razorpay_key_secret', 'Razorpay Key Secret', 'secret', 'Leave empty to keep the saved value'],
         ['payment', 'razorpay_webhook_secret', 'Razorpay Webhook Secret', 'secret', 'Any random text; put the same in Razorpay → Webhooks'],
+        ['payment', 'payu_key', 'PayU Merchant Key', 'text', 'PayU Dashboard → Developers → API keys'],
+        ['payment', 'payu_salt', 'PayU Salt (v1)', 'secret', 'Leave empty to keep the saved value'],
+        ['payment', 'payu_mode', 'PayU mode', 'payumode', 'Use Test until a test payment works, then Live'],
     ],
     'Wallet & withdrawals' => [
         ['wallet', 'withdrawals_enabled', 'Allow withdrawals', 'bool', 'Turn off to pause all new withdrawal requests'],
@@ -72,7 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     saveSetting($cat, $key, $m, 'JSON');
                     break;
                 case 'gateway':
-                    saveSetting($cat, $key, in_array($val, ['razorpay'], true) ? $val : '');
+                    saveSetting($cat, $key, in_array($val, ['razorpay', 'payu'], true) ? $val : '');
+                    break;
+                case 'payumode':
+                    saveSetting($cat, $key, $val === 'live' ? 'live' : 'test');
                     break;
                 case 'secret':
                     if ($val !== '') { saveSetting($cat, $key, $val, 'STRING', true); }
@@ -115,6 +122,12 @@ include __DIR__ . '/includes/header.php';
                         <select class="form-control" name="<?= e($name) ?>">
                             <option value="">None (payments off)</option>
                             <option value="razorpay" <?= $val === 'razorpay' ? 'selected' : '' ?>>Razorpay (UPI, cards, netbanking)</option>
+                            <option value="payu" <?= $val === 'payu' ? 'selected' : '' ?>>PayU (UPI, cards, netbanking, wallets)</option>
+                        </select>
+                    <?php elseif ($kind === 'payumode'): ?>
+                        <select class="form-control" name="<?= e($name) ?>">
+                            <option value="test" <?= $val !== 'live' ? 'selected' : '' ?>>Test (test.payu.in)</option>
+                            <option value="live" <?= $val === 'live' ? 'selected' : '' ?>>Live (secure.payu.in)</option>
                         </select>
                     <?php elseif ($kind === 'secret'): ?>
                         <input class="form-control" type="password" autocomplete="off" name="<?= e($name) ?>" placeholder="<?= $val !== '' ? '•••••••• saved' : 'not set' ?>">
@@ -130,6 +143,11 @@ include __DIR__ . '/includes/header.php';
                 Razorpay → Account &amp; Settings → <b>Webhooks</b> → Add:<br>
                 URL: <code><?= e(appUrl()) ?>/api/payment-webhook.php?gateway=razorpay</code><br>
                 Events: <code>payment.captured</code>, <code>order.paid</code> · Secret: same as above.
+            </div>
+            <div class="alert" style="background:#eef6ff;border:1px solid #cfe3ff">
+                PayU (optional but recommended) → Dashboard → <b>Webhooks</b> → Payment success URL:<br>
+                <code><?= e(appUrl()) ?>/api/payment-webhook.php?gateway=payu</code><br>
+                Every PayU payment is double-checked with PayU's verify_payment API before premium is given.
             </div>
         <?php endif; ?>
     </div>

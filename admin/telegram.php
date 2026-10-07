@@ -93,7 +93,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         saveSetting('telegram', 'mini_app_url', $mini);
         saveSetting('telegram', 'mini_app_short_name', preg_replace('/[^A-Za-z0-9_]/', '', $_POST['mini_app_short_name'] ?? ''));
+        $link = trim($_POST['channel_link'] ?? '');
+        if ($link !== '' && !preg_match('#^https://t\.me/[A-Za-z0-9_+/-]+$#', $link)) {
+            flash('error', 'Channel link must look like https://t.me/yourchannel or https://t.me/+InviteCode');
+            header('Location: ' . $self);
+            exit;
+        }
+        saveSetting('telegram', 'channel_link', $link);
+        saveSetting('telegram', 'start_show_channel', !empty($_POST['start_show_channel']), 'BOOLEAN');
+        saveSetting('telegram', 'force_join', !empty($_POST['force_join']), 'BOOLEAN');
         logAudit('SETTINGS_CHANGED', 'Telegram settings updated', 'settings');
+        if (!empty($_POST['force_join']) && tgConf('webhook_secret') !== '') {
+            (new Telegram())->setWebhook(appUrl() . '/bot/webhook.php', tgConf('webhook_secret')); // re-register with callback_query
+        }
         $_SESSION['tg_diag'] = runDiagnostics();
         flash('success', 'Telegram settings saved. Check results below.');
     } elseif ($action === 'diagnose') {
@@ -162,6 +174,14 @@ include __DIR__ . '/includes/header.php';
         <div class="form-group">
             <label>Channel / group <small>(@channelusername or -100… ID; the bot must be an admin there)</small></label>
             <input class="form-control" name="channel_id" value="<?= e(tgConf('channel_id')) ?>" placeholder="@bharatplay">
+        </div>
+        <div class="form-group">
+            <label>Channel join link <small>(optional; needed only for PRIVATE channels — e.g. https://t.me/+AbCdEf… from channel → Invite links)</small></label>
+            <input class="form-control" name="channel_link" value="<?= e(getSetting('telegram', 'channel_link', '')) ?>" placeholder="auto: https://t.me/<?= e(ltrim(tgConf('channel_id'), '@') ?: 'yourchannel') ?>">
+        </div>
+        <div class="form-group">
+            <label style="font-weight:normal"><input type="checkbox" name="start_show_channel" value="1" <?= getSetting('telegram', 'start_show_channel', true) ? 'checked' : '' ?>> On <code>/start</code> show “📢 Join our channel” button</label>
+            <label style="font-weight:normal"><input type="checkbox" name="force_join" value="1" <?= getSetting('telegram', 'force_join', false) ? 'checked' : '' ?>> <b>Require</b> users to join the channel before they get the Open button <small>(bot must be admin of the channel)</small></label>
         </div>
         <div class="form-group">
             <label>Mini App URL <small>(paste this same URL in @BotFather → Configure Mini App)</small></label>

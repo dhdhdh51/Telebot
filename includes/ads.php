@@ -81,9 +81,22 @@ class Ads {
             'image_url' => $ad['image_url'] ?: null,
             'video_url' => $ad['video_url'] ?: null,
             'destination_url' => $ad['destination_url'] ?: null,
-            'html_frame' => trim((string)$ad['creative_html']) !== '' ? '/api/ad-frame.php?id=' . (int)$ad['id'] : null,
+            'html_frame' => trim((string)$ad['creative_html']) !== '' ? self::frameOrigin() . '/api/ad-frame.php?id=' . (int)$ad['id'] : null,
+            // On a separate (sub)domain the ad script can safely get its own storage/cookies.
+            'frame_storage' => self::frameOrigin() !== '',
             'skip_after' => max(0, (int)getSetting('ads', 'skip_after_seconds', 5)),
         ];
+    }
+
+    /** Optional separate origin (e.g. https://ads.bharatseo.site) for ad-network code. */
+    public static function frameOrigin() {
+        $o = rtrim(trim((string)getSetting('ads', 'frame_origin', '')), '/');
+        $app = parse_url(appUrl(), PHP_URL_HOST);
+        // Must be https and must NOT be the app's own host (that would expose user sessions).
+        if (!preg_match('#^https://[A-Za-z0-9.-]+$#', $o) || parse_url($o, PHP_URL_HOST) === $app) {
+            return '';
+        }
+        return $o;
     }
 
     public static function trackClick($adId, $userId, $impressionId = null) {

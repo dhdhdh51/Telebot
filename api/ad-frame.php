@@ -9,6 +9,8 @@
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../includes/functions.php';
 
 $ad = db()->fetchOne(
     "SELECT creative_html FROM ads WHERE id = ? AND status = 'ACTIVE'
@@ -20,7 +22,9 @@ header('Content-Type: text/html; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: no-store');
 // Ad networks load scripts/frames from many domains; isolation comes from the iframe sandbox.
-header("Content-Security-Policy: default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; frame-ancestors 'self'");
+// frame-ancestors lists EVERY ancestor: our app plus Telegram Web/Desktop wrappers.
+$appOrigin = preg_replace('#^(https?://[^/]+).*$#', '$1', appUrl());
+header("Content-Security-Policy: default-src * data: blob: 'unsafe-inline' 'unsafe-eval'; frame-ancestors 'self' $appOrigin https://web.telegram.org https://*.telegram.org");
 
 if (!$ad || trim((string)$ad['creative_html']) === '') {
     http_response_code(404);

@@ -45,6 +45,15 @@ switch ($action) {
                       : jsonResponse(false, ['code' => 'AD_UNAVAILABLE', 'cooldown_seconds' => $r['cooldown_seconds'] ?? null], $r['error']);
         break;
 
+    case 'ad_claim':
+        if (!$isPost) {
+            jsonResponse(false, ['code' => 'METHOD_NOT_ALLOWED'], 'Method not allowed', 405);
+        }
+        $r = Rewards::claimAdIntent($userId, (string)(jsonInput()['intent'] ?? ''));
+        $r['success'] ? jsonResponse(true, $r, 'Reward added')
+                      : jsonResponse(false, ['code' => !empty($r['pending']) ? 'PENDING' : 'CLAIM_FAILED'], $r['error']);
+        break;
+
     case 'ad_status':
         $s = Rewards::intentStatus($userId, (string)($_GET['intent'] ?? ''));
         $s ? jsonResponse(true, $s) : jsonResponse(false, ['code' => 'NOT_FOUND'], 'Not found', 404);

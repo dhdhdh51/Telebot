@@ -156,9 +156,40 @@ class Telegram {
         return $this->apiRequest('setWebhook', [
             'url' => $url,
             'secret_token' => $secretToken,
-            'allowed_updates' => json_encode(['message']),
+            'allowed_updates' => json_encode(['message', 'callback_query']),
             'drop_pending_updates' => 'true',
         ]);
+    }
+
+    public function answerCallbackQuery($id, $text = '', $alert = false) {
+        return $this->apiRequest('answerCallbackQuery', ['callback_query_id' => $id, 'text' => $text, 'show_alert' => $alert ? 'true' : 'false']);
+    }
+
+    /** Public link users can open to join the channel ('' if unknown). */
+    public static function channelLink() {
+        $link = trim((string)getSetting('telegram', 'channel_link', ''));
+        if ($link !== '') {
+            return $link;
+        }
+        $id = tgConf('channel_id');
+        return ($id !== '' && $id[0] === '@') ? 'https://t.me/' . substr($id, 1) : '';
+    }
+
+    /**
+     * Is this Telegram user a member of the channel? null = could not check
+     * (bot not admin / channel not set) – callers should then not block the user.
+     */
+    public function isChannelMember($telegramUserId) {
+        $channel = tgConf('channel_id');
+        if ($channel === '') {
+            return null;
+        }
+        $r = $this->getChatMember($channel, $telegramUserId);
+        if (empty($r['ok'])) {
+            return null;
+        }
+        return in_array($r['result']['status'] ?? '', ['creator', 'administrator', 'member', 'restricted'], true)
+            && !(($r['result']['status'] ?? '') === 'restricted' && empty($r['result']['is_member']));
     }
 
     public function deleteWebhook() {

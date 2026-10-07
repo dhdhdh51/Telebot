@@ -30,6 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         saveSetting('ads', 'rewarded_ads_enabled', !empty($_POST['rewarded_ads_enabled']), 'BOOLEAN');
         saveSetting('ads', 'rewarded_provider', !empty($_POST['rewarded_ads_enabled']) ? 'adsgram' : '');
+        saveSetting('ads', 'reward_verification', ($_POST['reward_verification'] ?? '') === 'sdk' ? 'sdk' : 'server');
+        saveSetting('ads', 'reward_min_seconds', max(5, min(120, (int)($_POST['reward_min_seconds'] ?? 15))), 'INTEGER');
         $block = trim($_POST['adsgram_block_id'] ?? '');
         if ($block !== '' && !preg_match('/^\d{1,12}$/', $block)) {
             $err[] = 'Adsgram Reward block ID must be digits (e.g. 12345)';
@@ -94,11 +96,26 @@ include __DIR__ . '/includes/header.php';
         <h3 style="margin-bottom:8px">📺 Watch ad &amp; earn (Adsgram) <span class="badge badge-<?= $adsOn ? 'success' : 'danger' ?>"><?= $adsOn ? 'LIVE' : 'OFF' ?></span></h3>
         <p style="color:#555;font-size:14px;margin-bottom:12px">Users are paid only when <b>Adsgram's server</b> confirms a fully watched ad — the app itself can't add money.</p>
         <ol style="font-size:14px;line-height:1.8;padding-left:20px;margin-bottom:14px">
-            <li>Sign up at <b>partner.adsgram.ai</b> → Create <b>Ad platform</b> (Web app url: <code><?= e(tgConf('mini_app_url')) ?>/</code>, Bot ID = numbers before ":" in your bot token).</li>
+            <li>Sign up at <b>partner.adsgram.ai</b> → Create <b>Ad platform</b>: <b>Web app url</b> must be EXACTLY the URL in @BotFather (<code><?= e(tgConf('mini_app_url')) ?>/</code>), <b>Telegram direct link</b> = <code>https://t.me/<?= e(tgConf('bot_username')) ?></code>, <b>Bot ID</b> = numbers before ":" in your bot token. Wait until the platform is <b>Active</b> (moderation).</li>
             <li>Create <b>Ad unit</b> → type <b>Reward</b> → in <b>Reward URL</b> paste:<br>
                 <input class="form-control" readonly value="<?= e($rewardUrl) ?>" onclick="this.select()" style="font-family:monospace;font-size:12px"></li>
-            <li>After moderation copy the <b>Block ID</b> (digits) here and switch it on.</li>
+            <li>After moderation copy the <b>Block ID</b> (digits) here and switch it on. Open the Mini App <b>from Telegram</b> (not a browser) to test – Adsgram shows nothing outside Telegram.</li>
         </ol>
+        <div style="background:#f8f9fa;border-radius:6px;padding:10px 14px;margin-bottom:14px">
+            <b>Status check</b>
+            <?php foreach (Rewards::diagnose() as [$ok, $txt]): ?>
+                <div style="color:<?= $ok ? '#1e7e34' : '#c0392b' ?>;font-size:14px;margin-top:4px"><?= $ok ? '✔' : '✘' ?> <?= e($txt) ?></div>
+            <?php endforeach; ?>
+        </div>
+        <div class="form-group">
+            <label>How is a watched ad confirmed?</label>
+            <select class="form-control" name="reward_verification">
+                <option value="server" <?= Rewards::mode() === 'server' ? 'selected' : '' ?>>Adsgram server callback (Reward URL) – safest; Adsgram often enables it only for 50k+ daily users</option>
+                <option value="sdk" <?= Rewards::mode() === 'sdk' ? 'selected' : '' ?>>Adsgram SDK result – works for every app; protected by min watch time, daily limit, cooldown</option>
+            </select>
+        </div>
+        <div class="form-group" style="max-width:320px"><label>Minimum seconds between "Watch" and reward (SDK mode)</label>
+            <input class="form-control" type="number" min="5" max="120" name="reward_min_seconds" value="<?= (int)Rewards::minWatchSeconds() ?>"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
             <div class="form-group"><label>Adsgram Reward block ID</label><input class="form-control" name="adsgram_block_id" value="<?= e(getSetting('ads', 'adsgram_block_id', '')) ?>" placeholder="12345"></div>
             <div class="form-group"><label>&nbsp;</label><label style="font-weight:normal"><input type="checkbox" name="rewarded_ads_enabled" value="1" <?= getSetting('ads', 'rewarded_ads_enabled', false) ? 'checked' : '' ?>> Rewarded ads ON</label></div>

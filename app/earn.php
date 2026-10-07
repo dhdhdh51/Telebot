@@ -47,7 +47,8 @@ appHead('Earn', [
         <div id="noEarn" class="empty" style="display:none"><div class="big">💤</div>No earning options are active right now.</div>
 
 <?php appFoot('earn'); ?>
-<script src="https://sad.adsgram.ai/js/sad.min.js" async></script>
+<script>var sdkFailed = false;</script>
+<script src="https://sad.adsgram.ai/js/sad.min.js" async onerror="sdkFailed = true"></script>
 <script>
 (function () {
     const $ = (id) => document.getElementById(id);
@@ -105,20 +106,39 @@ appHead('Earn', [
     // Reward is credited ONLY when the ad network's server calls our reward URL.
     $('adBtn').addEventListener('click', async () => {
         const btn = $('adBtn');
-        if (!window.Adsgram) return BP.toast('Ads are still loading, try again in a moment');
+        if (!window.Adsgram) {
+            return BP.toast(sdkFailed ? 'Ad service could not load (blocked network / ad-blocker / VPN?)' : 'Ads are still loading, try again in a moment');
+        }
         btn.disabled = true; btn.textContent = '…';
         const start = await BP.post('/api/rewards.php', { action: 'ad_start' });
         if (!start.success) { BP.toast(start.error.message); return load(); }
         const intent = start.data.intent;
-        adController = adController || window.Adsgram.init({ blockId: st.ads.block_id });
+        try {
+            adController = adController || window.Adsgram.init({ blockId: String(st.ads.block_id) });
+        } catch (e) {
+            BP.toast('Ad setup error: ' + (e && e.message ? e.message : e));
+            return load();
+        }
         try {
             await adController.show();
-            BP.toast('Verifying your reward…');
-            waitForCredit(intent, 0);
         } catch (res) {
-            BP.toast(res && res.description ? 'Ad not completed: ' + res.description : 'Ad not completed, no reward');
-            load();
+            // Adsgram explains why (no ad available, skipped, wrong app URL, ...)
+            const why = res && res.description ? res.description : 'ad was closed early';
+            BP.toast(res && res.error ? 'Ad error: ' + why : 'No reward: ' + why);
+            return load();
         }
+        if (st.ads.mode === 'sdk') {
+            const c = await BP.post('/api/rewards.php', { action: 'ad_claim', intent });
+            if (c.success) {
+                BP.toast('🎉 +' + BP.money(c.data.amount) + ' added to your wallet');
+                if (BP.tg && BP.tg.HapticFeedback) BP.tg.HapticFeedback.notificationOccurred('success');
+            } else {
+                BP.toast(c.error.message);
+            }
+            return load();
+        }
+        BP.toast('Verifying your reward…');
+        waitForCredit(intent, 0);
     });
 
     async function waitForCredit(intent, n) {
