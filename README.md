@@ -41,7 +41,7 @@ compress it (e.g. 720p H.264, ~1–2 Mbps) before uploading.
 | Referrals | who invited whom, progress to eligibility, top referrers |
 | Reports | daily charts + totals for any date range, popular videos |
 | Audit Logs | admin actions + application error log |
-| Settings | ads, payment gateway keys, withdrawals on/off, methods, limits, fees, referral |
+| Settings | ads, payment gateway keys (Razorpay / PayU), withdrawals on/off, methods, limits, fees, referral |
 
 Telegram and Settings are SUPER_ADMIN only; MODERATOR cannot delete or add ad scripts.
 

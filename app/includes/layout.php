@@ -23,7 +23,8 @@ function appNav($active) {
 require_once __DIR__ . '/../../includes/csp.php';
 
 function appHead($title, array $cspExtra = []) {
-    setCsp($cspExtra);
+    // Ad-network frames may live on an ad subdomain (Settings → Ads).
+    setCsp(array_merge_recursive(['frame-src' => ['https:']], $cspExtra));
     $t = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
     echo <<<HTML
 <!DOCTYPE html>

@@ -82,11 +82,11 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 | Order | Page | Kya karo |
 |---|---|---|
-| 1 | **Telegram** | **🔍 Check everything** → sab ✔? ✘ par fix likha hota hai. **📣 Send test message** se channel test karo. |
+| 1 | **Telegram** | **🔍 Check everything** → sab ✔? ✘ par fix likha hota hai. **📣 Send test message** se channel test karo. "Join our channel" button `/start` par apne aap aata hai; private channel ho to **Channel join link** (`https://t.me/+…`) daalo. **Require users to join** tick karo to bina join kiye app ka button nahi milega. |
 | 2 | **Categories** | Naam/icon/order theek karo. |
 | 3 | **Videos → + Upload Video** | Video + thumbnail, FREE/PREMIUM, "Post to Telegram" tick → Upload. |
 | 4 | **Subscriptions** | Plans ke price/din set karo. |
-| 5 | **Settings → Payment** | Razorpay Key ID + Secret + Webhook secret (pehle `rzp_test_` keys). Razorpay → Webhooks mein page par likha URL daalo, events `payment.captured`, `order.paid`. |
+| 5 | **Settings → Payment** | **Razorpay** ya **PayU** choose karo. Razorpay: Key ID + Secret + Webhook secret. PayU: Merchant Key + Salt, mode **Test** pehle, test payment ho jaye to **Live**. Dono ke webhook URL usi page par likhe hain. |
 | 6 | **Ads** | Apni image ad ya Adsterra/Monetag ka code. |
 | 7 | **Rewards** | Adsgram (Watch ad & earn), daily check-in, referral bonus. Default sab safe/OFF hain. |
 | 8 | **Settings → Wallet** | Min withdrawal, fee, UPI/Bank, withdrawals ON/OFF. |
@@ -112,5 +112,8 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 | Telegram Desktop/Web mein har cheez 401 | Site HTTPS par honi chahiye (Step 1, 7). |
 | Channel par post nahi gaya | Admin → Telegram → Check everything; red line mein fix likha hai. Admin → Telegram → Recent posts mein error. |
 | Upload "larger than server limit" | cPanel → MultiPHP INI Editor → `upload_max_filesize` 512M, `post_max_size` 512M; ya video 720p mein compress karo. |
+| "Watch ad" se paise nahi aate | Admin → **Rewards → Status check** dekho. "No reward callback received" likha ho to verification **Adsgram SDK result** par switch karo. Adsgram platform ka **Web app url** bilkul BotFather wala URL hona chahiye aur platform **Active** ho. Test sirf Telegram ke andar se karo. |
+| Adsterra/Monetag ka banner khali dikhta hai | Settings → Ads → **Ad subdomain**: cPanel mein `ads.bharatseo.site` subdomain banao (same document root), SSL lagao, URL yahan daalo. |
+| Bot "join channel" nahi poochta | Telegram page par "Require users to join" tick karke **Save & check** dabao (webhook dobara register hota hai). Bot channel ka admin hona chahiye. |
 | Koi aur error | Admin → Audit Logs → **⚠️ Error log** |
 | install.php "already installed" | Normal hai. Re-install ke liye Step 0 se shuru karo. |

@@ -2,7 +2,15 @@
 /**
  * Earn system: daily check-in and rewarded ads (Adsgram).
  *
- * Rewarded-ad security model (the frontend can never credit money):
+ * Verification modes (Admin → Rewards):
+ *  - "server" (default, safest): money only when Adsgram's SERVER calls the reward URL.
+ *    Adsgram enables this mainly for big publishers, so it may never arrive for small apps.
+ *  - "sdk": the Adsgram SDK's "watched till the end" result, claimed via ad_claim. Still
+ *    protected by: an intent created before the ad, minimum watch time measured on the
+ *    server, one claim per intent, daily limit, cooldown, server-side amount. A scripted
+ *    user could fake claims up to the daily limit, so keep the amount small.
+ *
+ * Server mode flow:
  *  1. User taps "Watch ad" → startAdIntent() creates a PENDING reward row (cooldown + daily limit checked).
  *  2. Adsgram shows the ad; when the user watched it fully, ADSGRAM'S SERVER calls
  *     /api/reward-callback.php?provider=adsgram&key=<secret>&userid=<telegram id>.
@@ -20,13 +28,40 @@ class Rewards {
         return db()->fetchOne("SELECT * FROM reward_rules WHERE reward_type = ?", [$type]) ?: null;
     }
 
-    /** Rewarded ads are offered only if a server-verified provider is fully configured. */
+    public static function mode() {
+        return getSetting('ads', 'reward_verification', 'server') === 'sdk' ? 'sdk' : 'server';
+    }
+
+    public static function minWatchSeconds() {
+        return max(5, (int)getSetting('ads', 'reward_min_seconds', 15));
+    }
+
+    /** Why rewarded ads are (not) live – shown in Admin → Rewards. [[ok, text], ...] */
+    public static function diagnose() {
+        $rule = self::rule('WATCH_AD');
+        $block = (string)getSetting('ads', 'adsgram_block_id', '');
+        $out = [
+            [(bool)getSetting('ads', 'rewarded_ads_enabled', false), '"Rewarded ads ON" is ticked'],
+            [getSetting('ads', 'rewarded_provider', '') === 'adsgram', 'Provider is Adsgram'],
+            [(bool)preg_match('/^\d+$/', $block), 'Adsgram Reward block ID is set (digits only, not int-… / task-…)'],
+            [$rule && $rule['enabled'], '"Watch ad" rule enabled'],
+            [$rule && Security::toPaise($rule['amount']) > 0, 'Reward amount is more than ₹0'],
+        ];
+        if (self::mode() === 'server') {
+            $last = (int)getSetting('ads', 'last_callback_at', 0);
+            $out[] = [$last > 0, $last ? 'Last reward callback from Adsgram: ' . date('d M Y H:i', $last)
+                : 'No reward callback received from Adsgram yet. If users watch ads but get nothing, Adsgram is not calling your Reward URL → switch verification to "Adsgram SDK" below.'];
+        }
+        return $out;
+    }
+
+    /** Rewarded ads are offered only if fully configured. */
     public static function adsAvailable() {
         $rule = self::rule('WATCH_AD');
         return getSetting('ads', 'rewarded_ads_enabled', false)
             && getSetting('ads', 'rewarded_provider', '') === 'adsgram'
             && preg_match('/^\d+$/', (string)getSetting('ads', 'adsgram_block_id', ''))
-            && (string)getSetting('ads', 'reward_callback_key', '') !== ''
+            && (self::mode() === 'sdk' || (string)getSetting('ads', 'reward_callback_key', '') !== '')
             && $rule && $rule['enabled'] && Security::toPaise($rule['amount']) > 0;
     }
 
@@ -71,6 +106,7 @@ class Rewards {
                 'watched_today' => $adsToday,
                 'remaining_today' => $ad['daily_limit'] > 0 ? max(0, (int)$ad['daily_limit'] - $adsToday) : null,
                 'cooldown_seconds' => $last['s'] === null ? 0 : $cooldown,
+                'mode' => self::mode(),
             ] : null,
             'checkin' => self::checkinAvailable() ? ['amount' => $chk['amount'], 'done_today' => $checkedIn] : null,
             'referral' => [
@@ -181,6 +217,57 @@ class Rewards {
         }
         $status = $row['status'] === 'PENDING' && $row['age'] >= self::INTENT_TTL_MIN ? 'EXPIRED' : $row['status'];
         return ['status' => $status, 'amount' => $row['amount']];
+    }
+
+    /**
+     * SDK mode: the app reports "watched till the end" for ITS OWN intent.
+     * Server-side checks: intent belongs to user, still PENDING, not expired, and at least
+     * minWatchSeconds() passed since it was created (measured with the DB clock).
+     */
+    public static function claimAdIntent($userId, $ref) {
+        if (self::mode() !== 'sdk') {
+            return ['success' => false, 'error' => 'Waiting for confirmation from the ad network', 'pending' => true];
+        }
+        $db = db();
+        try {
+            $db->beginTransaction();
+            lockWallet($userId);
+            $intent = $db->fetchOne(
+                "SELECT *, TIMESTAMPDIFF(SECOND, created_at, NOW()) age FROM reward_transactions
+                 WHERE reference_id = ? AND user_id = ? AND reward_type = 'WATCH_AD' FOR UPDATE",
+                [(string)$ref, $userId]
+            );
+            if (!$intent || $intent['status'] !== 'PENDING') {
+                $db->rollBack();
+                return ['success' => false, 'error' => $intent && $intent['status'] === 'COMPLETED' ? 'Already credited' : 'Ad view not found'];
+            }
+            if ($intent['age'] > self::INTENT_TTL_MIN * 60) {
+                $db->rollBack();
+                return ['success' => false, 'error' => 'Ad view expired, please watch again'];
+            }
+            if ($intent['age'] < self::minWatchSeconds()) {
+                $db->execute("UPDATE reward_transactions SET status = 'FAILED' WHERE id = ?", [$intent['id']]);
+                $db->commit();
+                return ['success' => false, 'error' => 'Ad finished too quickly – no reward'];
+            }
+            $db->execute(
+                "UPDATE reward_transactions SET status = 'COMPLETED', verified = 1, verified_at = NOW(), reference_data = ? WHERE id = ?",
+                [json_encode(['provider' => 'adsgram', 'mode' => 'sdk', 'seconds' => (int)$intent['age'], 'ip' => Security::getClientIP()]), $intent['id']]
+            );
+            $r = addWalletTransaction($userId, 'REWARD', $intent['amount'], 'Watched rewarded ad', $intent['reference_id'], 'reward');
+            if (!$r['success']) {
+                $db->rollBack();
+                return $r;
+            }
+            $db->commit();
+            return ['success' => true, 'amount' => $intent['amount'], 'balance' => $r['balance_after']];
+        } catch (Exception $e) {
+            if ($db->getConnection()->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log('Ad claim error: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Please try again'];
+        }
     }
 
     /** Step 3: called ONLY by the provider's server callback (after key check). */

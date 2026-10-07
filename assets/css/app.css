@@ -283,7 +283,11 @@ body {
 /* 6-tab bottom nav that fits 320px screens */
 .bottom-nav { padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); }
 .bottom-nav .nav-item { flex: 1; padding: 4px 2px; font-size: 11px; min-width: 0; }
-.bottom-nav .nav-item span:first-child { font-size: 19px; margin-bottom: 2px; }
+.bottom-nav .nav-item span:first-child { font-size: 19px; margin-bottom: 2px; line-height: 1.2; }
+/* The older ".nav-item span {font-size:20px}" also hit the label, making labels overlap. */
+.bottom-nav .nav-item span:last-child { font-size: 10.5px; margin: 0; line-height: 1.2; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 340px) { .bottom-nav .nav-item span:last-child { font-size: 9.5px; } }
 .balance-big { font-size: 34px; font-weight: 800; }
 .stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; text-align: center; }
 .stat-row div b { display: block; font-size: 16px; }

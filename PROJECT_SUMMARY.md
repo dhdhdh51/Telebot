@@ -1,7 +1,7 @@
 # BharatPlay – Implementation Status
 
 What exists today, verified by an end-to-end run against MariaDB 10.5 + PHP 8.4
-(281 checks across install wizard, auth, streaming, ledger, withdrawals, rewards, referrals, crons, admin, Telegram, payments, ads, reports).
+(329 checks across install wizard, auth, streaming, ledger, withdrawals, rewards, referrals, crons, admin, Telegram, payments, ads, reports).
 
 ## Implemented
 
@@ -29,6 +29,6 @@ What exists today, verified by an end-to-end run against MariaDB 10.5 + PHP 8.4
 
 | Area | Missing |
 |---|---|
-| Payments | Cashfree / PayU adapters (Razorpay done) |
+| Payments | Cashfree adapter (Razorpay + PayU done) |
 | Video | HLS / quality selector, S3/R2 storage adapter |
 | Admin | 2FA, per-role permission editor, multiple admins UI (add admins in DB for now) |

@@ -30,6 +30,7 @@ if (!preg_match('/^\d{1,20}$/', $tgId)) {
     exit('{"ok":false}');
 }
 
+saveSetting('ads', 'last_callback_at', time(), 'INTEGER'); // lets the admin see Adsgram is calling
 $res = Rewards::completeAdIntent($tgId);
 if (!$res['success']) {
     error_log('Reward callback not credited for tg ' . $tgId . ': ' . $res['error']);

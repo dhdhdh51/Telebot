@@ -87,7 +87,7 @@ include __DIR__ . '/includes/header.php';
 
 <?php if (!$gatewayOn): ?>
 <div class="alert alert-error">Online payments are <b>OFF</b>. Users see the plans but cannot pay.
-    <?php if (isSuperAdmin()): ?><a href="/admin/settings.php">Enable Razorpay in Settings → Payment</a>.<?php endif; ?>
+    <?php if (isSuperAdmin()): ?><a href="/admin/settings.php">Enable Razorpay or PayU in Settings → Payment</a>.<?php endif; ?>
     You can still give premium manually from <a href="/admin/users.php">Users</a>.</div>
 <?php endif; ?>
 
