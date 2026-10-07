@@ -21,6 +21,8 @@
         </div>
 
         <div class="card">
+            <a class="list-item" href="/app/wallet.php"><span class="icon">👛</span><span class="grow">Wallet &amp; withdraw</span><span>›</span></a>
+            <a class="list-item" href="/app/earn.php"><span class="icon">💰</span><span class="grow">Earn rewards</span><span>›</span></a>
             <a class="list-item" href="/app/subscription.php"><span class="icon">💎</span><span class="grow">Premium plans</span><span>›</span></a>
             <a class="list-item" href="/app/categories.php"><span class="icon">🎬</span><span class="grow">Categories</span><span>›</span></a>
             <a class="list-item" href="/app/search.php"><span class="icon">🔎</span><span class="grow">Search</span><span>›</span></a>

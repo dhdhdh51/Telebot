@@ -26,6 +26,8 @@ $sections = [
         ['payment', 'razorpay_webhook_secret', 'Razorpay Webhook Secret', 'secret', 'Any random text; put the same in Razorpay → Webhooks'],
     ],
     'Wallet & withdrawals' => [
+        ['wallet', 'withdrawals_enabled', 'Allow withdrawals', 'bool', 'Turn off to pause all new withdrawal requests'],
+        ['wallet', 'withdrawal_methods', 'Allowed methods', 'methods', ''],
         ['wallet', 'min_withdrawal', 'Minimum withdrawal (₹)', 'money', ''],
         ['wallet', 'max_withdrawal_daily', 'Max withdrawal per day (₹)', 'money', ''],
         ['wallet', 'withdrawal_fee_percent', 'Withdrawal fee (%)', 'money', 'e.g. 2.5'],
@@ -65,6 +67,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($val !== '' && !preg_match('#^https://[^\s/]+(/[^\s]*)?$#', $val)) { $errors[] = "$label must start with https://"; break; }
                     saveSetting($cat, $key, rtrim($val, '/'));
                     break;
+                case 'methods':
+                    $m = array_values(array_intersect((array)($_POST['methods'] ?? []), ['UPI', 'BANK_TRANSFER']));
+                    saveSetting($cat, $key, $m, 'JSON');
+                    break;
                 case 'gateway':
                     saveSetting($cat, $key, in_array($val, ['razorpay'], true) ? $val : '');
                     break;
@@ -94,7 +100,7 @@ include __DIR__ . '/includes/header.php';
     <div class="content-box">
         <h3 style="margin-bottom:16px"><?= e($title) ?></h3>
         <?php foreach ($fields as [$cat, $key, $label, $kind, $help]):
-            $name = "s[$cat.$key]"; $val = getSetting($cat, $key, ''); ?>
+            $name = "s[$cat.$key]"; $val = getSetting($cat, $key, $kind === 'bool' && $key === 'withdrawals_enabled' ? true : ''); ?>
             <div class="form-group">
                 <?php if ($kind === 'bool'): ?>
                     <label style="display:flex;gap:8px;align-items:center">
@@ -102,7 +108,10 @@ include __DIR__ . '/includes/header.php';
                     </label>
                 <?php else: ?>
                     <label><?= e($label) ?></label>
-                    <?php if ($kind === 'gateway'): ?>
+                    <?php if ($kind === 'methods'): $cur = is_array($val) ? $val : ['UPI', 'BANK_TRANSFER']; ?>
+                        <label style="font-weight:normal;margin-right:16px"><input type="checkbox" name="methods[]" value="UPI" <?= in_array('UPI', $cur, true) ? 'checked' : '' ?>> UPI</label>
+                        <label style="font-weight:normal"><input type="checkbox" name="methods[]" value="BANK_TRANSFER" <?= in_array('BANK_TRANSFER', $cur, true) ? 'checked' : '' ?>> Bank transfer</label>
+                    <?php elseif ($kind === 'gateway'): ?>
                         <select class="form-control" name="<?= e($name) ?>">
                             <option value="">None (payments off)</option>
                             <option value="razorpay" <?= $val === 'razorpay' ? 'selected' : '' ?>>Razorpay (UPI, cards, netbanking)</option>

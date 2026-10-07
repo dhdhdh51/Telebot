@@ -622,9 +622,9 @@ INSERT INTO `subscription_plans` (`name`, `slug`, `description`, `duration_days`
 -- --------------------------------------------------------
 
 INSERT INTO `reward_rules` (`reward_type`, `name`, `description`, `amount`, `daily_limit`, `cooldown_seconds`, `enabled`) VALUES
-('WATCH_AD', 'Watch Rewarded Ad', 'Earn rewards by watching advertisements', 2.00, 10, 300, 1),
+('WATCH_AD', 'Watch Rewarded Ad', 'Earn rewards by watching advertisements', 0.10, 10, 60, 1),
 ('REFERRAL', 'Referral Bonus', 'Earn when someone signs up using your referral link', 10.00, 0, 0, 1),
-('DAILY_CHECKIN', 'Daily Check-in', 'Earn rewards for daily app usage', 1.00, 1, 86400, 1),
+('DAILY_CHECKIN', 'Daily Check-in', 'Earn rewards for daily app usage', 0.50, 1, 0, 0),
 ('VIDEO_COMPLETION', 'Complete Video', 'Earn rewards for watching complete videos', 0.50, 5, 0, 0);
 
 -- --------------------------------------------------------
@@ -655,7 +655,9 @@ INSERT INTO `settings` (`category`, `key`, `value`, `type`, `is_secret`, `descri
 ('ads', 'banner_enabled', '1', 'BOOLEAN', 0, 'Show banner ads'),
 ('ads', 'skip_after_seconds', '5', 'INTEGER', 0, 'Interstitial skip delay'),
 ('ads', 'rewarded_ads_enabled', '0', 'BOOLEAN', 0, 'Enable rewarded ads (only works with a server-verified provider)'),
-('ads', 'rewarded_provider', '', 'STRING', 0, 'Rewarded ad provider with signed server-side callbacks. Empty = Earn disabled'),
+('ads', 'rewarded_provider', '', 'STRING', 0, 'Rewarded ad provider (adsgram). Empty = ad rewards off'),
+('ads', 'adsgram_block_id', '', 'STRING', 0, 'Adsgram Reward block id'),
+('ads', 'reward_callback_key', '', 'STRING', 0, 'Secret in the reward callback URL'),
 
 ('payment', 'gateway', '', 'STRING', 0, 'Active payment gateway (empty = off, razorpay)'),
 ('payment', 'razorpay_webhook_secret', '', 'STRING', 1, 'Razorpay webhook secret'),
@@ -663,12 +665,14 @@ INSERT INTO `settings` (`category`, `key`, `value`, `type`, `is_secret`, `descri
 ('payment', 'razorpay_key_id', '', 'STRING', 1, 'Razorpay Key ID'),
 ('payment', 'razorpay_key_secret', '', 'STRING', 1, 'Razorpay Key Secret'),
 
+('wallet', 'withdrawals_enabled', '1', 'BOOLEAN', 0, 'Allow withdrawal requests'),
+('wallet', 'withdrawal_methods', '["UPI","BANK_TRANSFER"]', 'JSON', 0, 'Allowed withdrawal methods'),
 ('wallet', 'min_withdrawal', '100.00', 'STRING', 0, 'Minimum withdrawal amount'),
 ('wallet', 'max_withdrawal_daily', '10000.00', 'STRING', 0, 'Maximum daily withdrawal amount'),
 ('wallet', 'withdrawal_fee_percent', '0', 'STRING', 0, 'Withdrawal fee percentage'),
 ('wallet', 'withdrawal_fee_fixed', '0.00', 'STRING', 0, 'Fixed withdrawal fee'),
 
-('referral', 'reward_amount', '10.00', 'STRING', 0, 'Referral reward amount'),
+('referral', 'reward_amount', '2.00', 'STRING', 0, 'Referral reward amount'),
 ('referral', 'min_referred_watch_time', '300', 'INTEGER', 0, 'Minimum watch time in seconds for referral reward eligibility'),
 
 ('security', 'session_lifetime', '86400', 'INTEGER', 0, 'Admin session lifetime in seconds'),

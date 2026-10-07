@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/includes/admin-bootstrap.php';
+require_once __DIR__ . '/includes/charts.php';
 
 $db = db();
 $pageTitle = 'Dashboard';
@@ -17,8 +18,22 @@ $stats = [
     'premium_users' => $db->fetchOne("SELECT COUNT(DISTINCT user_id) as count FROM subscriptions WHERE status = 'ACTIVE' AND end_date > NOW()")['count'],
     'today_revenue' => $db->fetchOne("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE status = 'SUCCESS' AND DATE(created_at) = CURDATE()")['total'],
     'today_ad_impressions' => $db->fetchOne("SELECT COUNT(*) as count FROM ad_impressions WHERE DATE(created_at) = CURDATE()")['count'],
+    'today_rewards' => $db->fetchOne("SELECT COALESCE(SUM(amount), 0) as total FROM reward_transactions WHERE status = 'COMPLETED' AND created_at >= CURDATE()")['total'],
     'pending_withdrawals' => $db->fetchOne("SELECT COUNT(*) as count FROM withdrawals WHERE status = 'PENDING'")['count'],
     'pending_withdrawal_amount' => $db->fetchOne("SELECT COALESCE(SUM(amount), 0) as total FROM withdrawals WHERE status = 'PENDING'")['total']
+];
+
+// 14-day charts
+$cFrom = date('Y-m-d', strtotime('-13 days'));
+$cTo = date('Y-m-d');
+$cp = [$cFrom . ' 00:00:00', $cTo . ' 23:59:59'];
+$charts = [
+    ['Daily users', dailySeries("SELECT DATE(created_at) d, COUNT(DISTINCT user_id) v FROM video_views WHERE created_at BETWEEN ? AND ? GROUP BY d", $cp, $cFrom, $cTo), false, '#3498db'],
+    ['Video views', dailySeries("SELECT DATE(created_at) d, COUNT(*) v FROM video_views WHERE created_at BETWEEN ? AND ? GROUP BY d", $cp, $cFrom, $cTo), false, '#9b59b6'],
+    ['Subscription revenue', dailySeries("SELECT DATE(created_at) d, SUM(amount) v FROM payments WHERE status='SUCCESS' AND created_at BETWEEN ? AND ? GROUP BY d", $cp, $cFrom, $cTo), true, '#27ae60'],
+    ['Ad impressions', dailySeries("SELECT DATE(created_at) d, COUNT(*) v FROM ad_impressions WHERE created_at BETWEEN ? AND ? GROUP BY d", $cp, $cFrom, $cTo), false, '#e67e22'],
+    ['Rewards', dailySeries("SELECT DATE(created_at) d, SUM(amount) v FROM reward_transactions WHERE status='COMPLETED' AND created_at BETWEEN ? AND ? GROUP BY d", $cp, $cFrom, $cTo), true, '#f39c12'],
+    ['Withdrawals', dailySeries("SELECT DATE(processed_at) d, SUM(net_amount) v FROM withdrawals WHERE status='PAID' AND processed_at BETWEEN ? AND ? GROUP BY d", $cp, $cFrom, $cTo), true, '#c0392b'],
 ];
 
 // Recent videos
@@ -94,11 +109,21 @@ include 'includes/header.php';
     </div>
     
     <div class="stat-card">
+        <h3>Today's Rewards</h3>
+        <div class="value">₹<?php echo number_format($stats['today_rewards'], 2); ?></div>
+    </div>
+
+    <div class="stat-card">
         <h3>Pending Withdrawals</h3>
         <div class="value"><?php echo number_format($stats['pending_withdrawals']); ?></div>
         <small>₹<?php echo number_format($stats['pending_withdrawal_amount'], 2); ?></small>
     </div>
 </div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:0 20px">
+<?php foreach ($charts as [$t, $data, $isMoney, $color]) echo svgBarChart($data, $t . ' (14 days)', $isMoney, $color); ?>
+</div>
+<p style="margin:-10px 0 20px"><a href="/admin/reports.php">Full reports with date filter →</a></p>
 
 <div class="content-box">
     <h2 style="margin-bottom: 20px;">Recent Videos</h2>
