@@ -18,6 +18,9 @@ $sections = [
         ['ads', 'banner_enabled', 'Show banner ads', 'bool', 'Banner on Home and below the player'],
         ['ads', 'free_user_frequency', 'Video ad every N videos', 'int', '1 = before every video, 3 = every 3rd video'],
         ['ads', 'skip_after_seconds', 'Allow skip after (seconds)', 'int', 'For interstitial / video ads'],
+        ['ads', 'adsgram_preroll_enabled', 'Adsgram ad before every video (pre-roll)', 'bool', 'Free users only. Uses "Video ad every N videos" above.'],
+        ['ads', 'adsgram_preroll_block', 'Adsgram Interstitial block ID', 'adsgramblock', 'partner.adsgram.ai → Ad unit type Interstitial → Copy BlockID (looks like int-12345)'],
+        ['ads', 'adsgram_preroll_priority', 'Adsgram pre-roll priority', 'int', 'Higher than your own interstitial ads = Adsgram shown first; lower = your own ads first'],
         ['ads', 'frame_origin', 'Ad subdomain for network code (optional)', 'url', 'If Adsterra/Monetag code shows blank: cPanel → Domains → create ads.yourdomain with the SAME document root as the site, enable SSL, enter https://ads.yourdomain here'],
     ],
     'Payment' => [
@@ -54,6 +57,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($sections as $fields) {
         foreach ($fields as [$cat, $key, $label, $kind]) {
             $name = "$cat.$key";
+            // A field missing from the form (e.g. added in a newer version) keeps its saved value.
+            if (!in_array($kind, ['bool', 'methods', 'secret'], true) && !array_key_exists($name, $in)) {
+                continue;
+            }
             $val = $kind === 'bool' ? !empty($in[$name]) : trim((string)($in[$name] ?? ''));
             switch ($kind) {
                 case 'bool':
@@ -78,6 +85,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 case 'gateway':
                     saveSetting($cat, $key, in_array($val, ['razorpay', 'payu'], true) ? $val : '');
                     break;
+                case 'adsgramblock':
+                    if ($val !== '' && !preg_match('/^(int-)?\d{1,12}$/', $val)) { $errors[] = "$label must look like int-12345"; break; }
+                    saveSetting($cat, $key, $val);
+                    break;
                 case 'payumode':
                     saveSetting($cat, $key, $val === 'live' ? 'live' : 'test');
                     break;
@@ -88,6 +99,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     saveSetting($cat, $key, mb_substr($val, 0, 255));
             }
         }
+    }
+    require_once __DIR__ . '/../includes/ads.php';
+    if (Ads::syncAdsgramPreroll() === false && getSetting('ads', 'adsgram_preroll_enabled', false)) {
+        $errors[] = 'Adsgram pre-roll needs a valid Interstitial block ID';
     }
     logAudit('SETTINGS_CHANGED', 'Settings updated', 'settings');
     flash($errors ? 'error' : 'success', $errors ? 'Saved, except: ' . implode('; ', $errors) : 'Settings saved.');
@@ -107,7 +122,7 @@ include __DIR__ . '/includes/header.php';
     <div class="content-box">
         <h3 style="margin-bottom:16px"><?= e($title) ?></h3>
         <?php foreach ($fields as [$cat, $key, $label, $kind, $help]):
-            $name = "s[$cat.$key]"; $val = getSetting($cat, $key, $kind === 'bool' && $key === 'withdrawals_enabled' ? true : ''); ?>
+            $name = "s[$cat.$key]"; $val = getSetting($cat, $key, $kind === 'bool' && $key === 'withdrawals_enabled' ? true : ($key === 'adsgram_preroll_priority' ? 10 : '')); ?>
             <div class="form-group">
                 <?php if ($kind === 'bool'): ?>
                     <label style="display:flex;gap:8px;align-items:center">

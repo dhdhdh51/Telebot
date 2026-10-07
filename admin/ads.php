@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/includes/admin-bootstrap.php';
 require_once __DIR__ . '/../includes/video.php';
+require_once __DIR__ . '/../includes/ads.php';
 
 $db = db();
 $self = '/admin/ads.php';
@@ -24,6 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $id = (int)($_POST['id'] ?? 0);
     $old = $id ? $db->fetchOne("SELECT * FROM ads WHERE id = ?", [$id]) : null;
+    if ($old && Ads::isProviderAd($old)) {
+        flash('error', 'The Adsgram pre-roll is managed in Settings → Ads.');
+        header('Location: ' . $self);
+        exit;
+    }
 
     if ($action === 'save') {
         $type = $_POST['type'] ?? '';
@@ -93,6 +99,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $ads = $db->fetchAll("SELECT * FROM ads ORDER BY status = 'ACTIVE' DESC, priority DESC, id DESC");
 $editId = (int)($_GET['edit'] ?? 0);
 $editing = $editId ? $db->fetchOne("SELECT * FROM ads WHERE id = ?", [$editId]) : null;
+if ($editing && Ads::isProviderAd($editing)) {
+    $editing = null;
+}
 $showForm = $editing || isset($_GET['new']);
 $adsOn = getSetting('ads', 'enabled', true);
 
@@ -121,13 +130,16 @@ include __DIR__ . '/includes/header.php';
             <tr>
                 <td><strong><?= e($a['name']) ?></strong><br><small>priority <?= (int)$a['priority'] ?></small></td>
                 <td><?= e($a['type']) ?></td>
-                <td><?php if ($a['image_url']): ?><img src="<?= e($a['image_url']) ?>" alt="" style="max-width:120px;max-height:60px;border-radius:4px"><?php elseif ($a['video_url']): ?>🎞 video<?php else: ?>📜 network code<?php endif; ?></td>
+                <td><?php if (Ads::isProviderAd($a)): ?>📺 Adsgram<?php elseif ($a['image_url']): ?><img src="<?= e($a['image_url']) ?>" alt="" style="max-width:120px;max-height:60px;border-radius:4px"><?php elseif ($a['video_url']): ?>🎞 video<?php else: ?>📜 network code<?php endif; ?></td>
                 <td><?= number_format((int)$a['impressions']) ?></td>
                 <td><?= number_format((int)$a['clicks']) ?></td>
                 <td><?= $ctr ?>%</td>
                 <td style="font-size:12px"><?= $a['start_date'] ? 'from ' . e(date('d M', strtotime($a['start_date']))) : '' ?><?= $a['end_date'] ? '<br>to ' . e(date('d M', strtotime($a['end_date']))) : (!$a['start_date'] ? 'always' : '') ?></td>
                 <td><span class="badge badge-<?= $a['status'] === 'ACTIVE' ? 'success' : 'danger' ?>"><?= e($a['status']) ?></span></td>
                 <td style="white-space:nowrap">
+                    <?php if (Ads::isProviderAd($a)): ?>
+                    <?php if (isSuperAdmin()): ?><a href="/admin/settings.php">Settings → Ads</a><?php else: ?><small>Managed in Settings</small><?php endif; ?>
+                    <?php else: ?>
                     <?php if (Auth::hasPermission('edit')): ?>
                     <a class="btn btn-primary" style="padding:4px 10px;font-size:12px" href="?edit=<?= (int)$a['id'] ?>#adForm">Edit</a>
                     <form method="POST" style="display:inline"><?= CSRF::getInputField() ?><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= (int)$a['id'] ?>">
@@ -136,6 +148,7 @@ include __DIR__ . '/includes/header.php';
                     <?php if (Auth::hasPermission('delete')): ?>
                     <form method="POST" style="display:inline"><?= CSRF::getInputField() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int)$a['id'] ?>">
                         <button class="btn btn-danger" style="padding:4px 10px;font-size:12px" onclick="return confirm('Delete this ad?')">Delete</button></form>
+                    <?php endif; ?>
                     <?php endif; ?>
                 </td>
             </tr>
