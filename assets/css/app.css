@@ -279,3 +279,30 @@ body {
 .ad-label { font-size: 10px; color: var(--tg-theme-hint-color, #999); text-align: left; margin-bottom: 2px; }
 .empty { text-align: center; padding: 40px 16px; color: var(--tg-theme-hint-color, #999); }
 .empty .big { font-size: 42px; margin-bottom: 8px; }
+
+/* 6-tab bottom nav that fits 320px screens */
+.bottom-nav { padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); }
+.bottom-nav .nav-item { flex: 1; padding: 4px 2px; font-size: 11px; min-width: 0; }
+.bottom-nav .nav-item span:first-child { font-size: 19px; margin-bottom: 2px; }
+.balance-big { font-size: 34px; font-weight: 800; }
+.stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; text-align: center; }
+.stat-row div b { display: block; font-size: 16px; }
+.tx { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(128,128,128,.15); font-size: 14px; }
+.tx:last-child { border-bottom: 0; }
+.plus { color: #27ae60; font-weight: 700; } .minus { color: #e74c3c; font-weight: 700; }
+.seg { display: flex; gap: 8px; margin-bottom: 12px; }
+.seg button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--tg-theme-hint-color, #ccc);
+  background: transparent; color: inherit; font-weight: 600; }
+.seg button.on { background: var(--tg-theme-button-color, #3390ec); color: var(--tg-theme-button-text-color, #fff); border-color: transparent; }
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 13px; margin-bottom: 4px; color: var(--tg-theme-hint-color, #888); }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; }
+.pill.PENDING, .pill.PROCESSING { background: #fff3cd; color: #856404; }
+.pill.PAID { background: #d4edda; color: #155724; }
+.pill.REJECTED, .pill.CANCELLED { background: #f8d7da; color: #721c24; }
+.earn-card { display: flex; align-items: center; gap: 12px; }
+.earn-card .icon { font-size: 30px; }
+.earn-card .grow { flex: 1; }
+.earn-card button { width: auto; padding: 10px 16px; }
+.toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: rgba(0,0,0,.85); color: #fff;
+  padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 200; max-width: 90%; text-align: center; }

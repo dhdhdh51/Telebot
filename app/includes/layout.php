@@ -7,7 +7,7 @@
 function appNav($active) {
     $tabs = [
         'index' => ['🏠', 'Home'], 'search' => ['🔎', 'Search'], 'categories' => ['🎬', 'Categories'],
-        'subscription' => ['💎', 'Premium'], 'profile' => ['👤', 'Profile'],
+        'earn' => ['💰', 'Earn'], 'subscription' => ['💎', 'Premium'], 'profile' => ['👤', 'Profile'],
     ];
     echo '<nav class="bottom-nav">';
     foreach ($tabs as $page => [$icon, $label]) {
@@ -20,7 +20,10 @@ function appNav($active) {
     echo '</nav>';
 }
 
-function appHead($title) {
+require_once __DIR__ . '/../../includes/csp.php';
+
+function appHead($title, array $cspExtra = []) {
+    setCsp($cspExtra);
     $t = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
     echo <<<HTML
 <!DOCTYPE html>

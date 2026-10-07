@@ -1,7 +1,7 @@
 # BharatPlay – Implementation Status
 
 What exists today, verified by an end-to-end run against MariaDB 10.5 + PHP 8.4
-(191 checks across auth, streaming, ledger, withdrawals, referrals, crons, admin, Telegram, payments, ads).
+(281 checks across install wizard, auth, streaming, ledger, withdrawals, rewards, referrals, crons, admin, Telegram, payments, ads, reports).
 
 ## Implemented
 
@@ -20,16 +20,15 @@ What exists today, verified by an end-to-end run against MariaDB 10.5 + PHP 8.4
 - **Payments**: `PaymentGatewayInterface` + Razorpay (order from DB price, checkout signature + server-side payment fetch, signed webhook, amount check, idempotent grant, renewal stacking).
 - **Cron**: subscription expiry, analytics aggregation, cleanup, referral payouts (CLI-only).
 
+- **Wallet & withdrawals (Mini App + admin)**: balance/history, UPI or bank withdrawal with fee/min/daily limit, user cancel, admin queue (decrypted details, PROCESSING → PAID with UTR / REJECTED with refund), manual adjustments, Telegram notifications.
+- **Earn**: Adsgram rewarded ads with server callback + per-user intent (no client-side crediting), daily check-in, referral info; admin Rewards page with kill switch.
+- **Admin analytics**: Reports (date filters, 7 daily SVG charts, conversion, CTR, completion, popular videos), dashboard 14-day charts, Referrals, Audit/Error logs.
+- **Installer wizard**: requirements → DB connect + import + config.php → admin → Telegram (token, channel check, webhook) → cron lines → self-delete; locked against strangers.
+
 ## Not implemented yet
 
 | Area | Missing |
 |---|---|
-| Admin pages | rewards, wallet adjustments, withdrawals queue, referrals, reports/charts, audit log viewer |
-| Mini App pages | wallet, earn, withdrawal form |
-| APIs | `wallet.php`, `withdrawal.php`, `rewards.php` |
 | Payments | Cashfree / PayU adapters (Razorpay done) |
-| Rewarded ads | provider adapter with signed server-side callbacks (deliberately disabled until one exists) |
-| Other | HLS/quality selector, admin 2FA, configurable role permissions, app-level error log viewer, request IDs |
-
-The backend helpers for the missing screens (e.g. `Video::uploadVideo/create/update/delete`,
-`Telegram::publishVideo`, `Wallet::processWithdrawal`) already exist; the screens need to call them.
+| Video | HLS / quality selector, S3/R2 storage adapter |
+| Admin | 2FA, per-role permission editor, multiple admins UI (add admins in DB for now) |

@@ -6,8 +6,8 @@
  *  - Every balance change goes through addWalletTransaction() (ledger + balance in one tx).
  *  - Each money operation locks the user's wallet row first, so limits/cooldowns/balance
  *    checks cannot be raced by parallel requests.
- *  - Rewards are idempotent: the reference_id is derived from the provider's / domain's
- *    unique id and is UNIQUE in both reward_transactions and wallet_transactions.
+ *  - Rewards are idempotent: reference_id is UNIQUE in reward_transactions and wallet_transactions.
+ *  - Ad rewards / check-in live in includes/rewards.php.
  */
 
 require_once __DIR__ . '/../config/database.php';
@@ -15,96 +15,6 @@ require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/functions.php';
 
 class Wallet {
-
-    /**
-     * Rewarded ads are only available when a provider with SERVER-SIDE verification
-     * (signed server-to-server callback) is configured. No such provider adapter
-     * ships with this codebase, so this returns false and the Earn button stays hidden.
-     * See README → "Rewarded ads" for how to add one.
-     */
-    public static function rewardedAdsAvailable(): bool {
-        return (bool)getSetting('ads', 'rewarded_ads_enabled', false)
-            && getSetting('ads', 'rewarded_provider', '') !== ''
-            && class_exists('RewardedAdProviderVerifier');
-    }
-
-    /**
-     * Credit a rewarded-ad reward. MUST only be called from a provider callback endpoint
-     * AFTER that endpoint has verified the provider's signature. Never call this from a
-     * request initiated by the Mini App frontend.
-     *
-     * @param string $providerTxId  Unique transaction id issued by the ad provider.
-     */
-    public static function creditVerifiedAdReward(int $userId, string $provider, string $providerTxId, array $callbackData = []) {
-        $db = db();
-        $referenceId = 'AD_' . substr(hash('sha256', $provider . ':' . $providerTxId), 0, 40);
-
-        $rule = $db->fetchOne("SELECT * FROM reward_rules WHERE reward_type = 'WATCH_AD' AND enabled = 1");
-        if (!$rule) {
-            return ['success' => false, 'error' => 'Reward not available'];
-        }
-
-        try {
-            $db->beginTransaction();
-            lockWallet($userId);
-
-            // Idempotency: provider retries / replays of the same callback.
-            if ($db->fetchOne("SELECT id FROM reward_transactions WHERE reference_id = ?", [$referenceId])) {
-                $db->rollBack();
-                return ['success' => true, 'duplicate' => true];
-            }
-
-            if ($rule['daily_limit'] > 0) {
-                $today = $db->fetchOne(
-                    "SELECT COUNT(*) AS c FROM reward_transactions
-                     WHERE user_id = ? AND reward_type = 'WATCH_AD' AND status = 'COMPLETED'
-                     AND created_at >= CURDATE()",
-                    [$userId]
-                );
-                if ($today['c'] >= $rule['daily_limit']) {
-                    $db->rollBack();
-                    return ['success' => false, 'error' => 'Daily reward limit reached'];
-                }
-            }
-
-            if ($rule['cooldown_seconds'] > 0) {
-                $recent = $db->fetchOne(
-                    "SELECT id FROM reward_transactions
-                     WHERE user_id = ? AND reward_type = 'WATCH_AD' AND status = 'COMPLETED'
-                     AND created_at > DATE_SUB(NOW(), INTERVAL ? SECOND) LIMIT 1",
-                    [$userId, (int)$rule['cooldown_seconds']]
-                );
-                if ($recent) {
-                    $db->rollBack();
-                    return ['success' => false, 'error' => 'Please wait before claiming next reward'];
-                }
-            }
-
-            // Amount always comes from the server-side rule, never from the request.
-            $db->execute(
-                "INSERT INTO reward_transactions (user_id, reward_type, amount, reference_id, reference_type, reference_data, status, verified, verified_at)
-                 VALUES (?, 'WATCH_AD', ?, ?, 'ad_provider', ?, 'COMPLETED', 1, NOW())",
-                [$userId, $rule['amount'], $referenceId, json_encode(['provider' => $provider, 'tx' => $providerTxId] + $callbackData)]
-            );
-
-            $result = addWalletTransaction($userId, 'REWARD', $rule['amount'], 'Rewarded ad', $referenceId, 'reward');
-            if (!$result['success']) {
-                $db->rollBack();
-                return $result;
-            }
-
-            createNotification($userId, 'reward_earned', 'Reward Earned!', "You earned ₹{$rule['amount']}", ['amount' => $rule['amount']]);
-            $db->commit();
-            return ['success' => true, 'amount' => $rule['amount'], 'balance' => $result['balance_after']];
-
-        } catch (Exception $e) {
-            if ($db->getConnection()->inTransaction()) {
-                $db->rollBack();
-            }
-            error_log("Reward processing error: " . $e->getMessage());
-            return ['success' => false, 'error' => 'Failed to process reward'];
-        }
-    }
 
     /**
      * Pay the referral bonus for one referred user, if eligible. Idempotent.
@@ -116,6 +26,9 @@ class Wallet {
 
         $rewardAmount = (string)getSetting('referral', 'reward_amount', '10.00');
         $minWatchTime = (int)getSetting('referral', 'min_referred_watch_time', 300);
+        if (Security::toPaise($rewardAmount) <= 0) {
+            return ['success' => false, 'error' => 'Referral bonus is disabled'];
+        }
 
         try {
             $db->beginTransaction();
@@ -278,7 +191,7 @@ class Wallet {
      *   PROCESSING -> PAID | REJECTED | CANCELLED
      * The row is locked so two admins clicking at once cannot refund twice.
      */
-    public static function processWithdrawal(int $withdrawalId, int $adminId, string $status, $transactionId = null, $notes = null) {
+    public static function processWithdrawal(int $withdrawalId, ?int $adminId, string $status, $transactionId = null, $notes = null, ?int $onlyUserId = null) {
         $db = db();
         $allowed = ['PROCESSING', 'PAID', 'REJECTED', 'CANCELLED'];
         if (!in_array($status, $allowed, true)) {
@@ -289,6 +202,12 @@ class Wallet {
             $db->beginTransaction();
 
             $withdrawal = $db->fetchOne("SELECT * FROM withdrawals WHERE id = ? FOR UPDATE", [$withdrawalId]);
+            // User self-service: only their own, only CANCELLED, only while still PENDING.
+            if ($onlyUserId !== null && (!$withdrawal || (int)$withdrawal['user_id'] !== $onlyUserId
+                    || $status !== 'CANCELLED' || $withdrawal['status'] !== 'PENDING')) {
+                $db->rollBack();
+                return ['success' => false, 'error' => 'This withdrawal can no longer be cancelled'];
+            }
             if (!$withdrawal || !in_array($withdrawal['status'], ['PENDING', 'PROCESSING'], true)
                 || ($status === 'PROCESSING' && $withdrawal['status'] === 'PROCESSING')) {
                 $db->rollBack();

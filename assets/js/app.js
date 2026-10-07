@@ -139,6 +139,16 @@
     if (b && user && user.is_premium) b.style.display = 'inline-block';
   }
 
-  window.BP = { tg, api, post, ensureAuth, startParam, escapeHtml, formatViews, thumbUrl, showError,
+  function toast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  function money(v) { return '₹' + (Number(v) || 0).toFixed(2); }
+
+  window.BP = { toast, money, tg, api, post, ensureAuth, startParam, escapeHtml, formatViews, thumbUrl, showError,
                 openExternal, buildAdCreative, renderBanner, markPremium };
 })();
