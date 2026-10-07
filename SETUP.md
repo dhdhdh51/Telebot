@@ -3,6 +3,8 @@
 Poora setup browser se hota hai. Kisi file ko edit karne ki zaroorat nahi.
 Domain example: `https://bharatseo.site` (apna domain lagao).
 
+> **aaPanel use kar rahe ho?** Neeche "aaPanel guide" section follow karo (cPanel wale steps 1–4, 6, 7 ki jagah).
+
 ---
 
 ## 0. Purana install hatao (sirf re-install ke liye)
@@ -36,7 +38,7 @@ cPanel → **MySQL® Databases**:
 2. cPanel → File Manager → `public_html/` → **Upload** → ZIP → **Extract**
 3. Extract ke baad ek folder banega (jaise `Telebot-feature-bharatplay-core`). Uske **andar ki saari files**
    select karke **Move** → `/public_html`. Final check: `public_html/install.php` hona chahiye
-   (`public_html/Telebot-.../install.php` nahi). Hidden files (`.htaccess`, `.user.ini`) bhi move hon:
+   (`public_html/Telebot-.../install.php` nahi). Hidden file `.htaccess` bhi move ho:
    File Manager → Settings → **Show Hidden Files**.
 
 ## 5. Install wizard chalao
@@ -111,9 +113,64 @@ RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 | Mini App mein "Please open from Telegram" | Browser se nahi, Telegram bot ke button se kholo. |
 | Telegram Desktop/Web mein har cheez 401 | Site HTTPS par honi chahiye (Step 1, 7). |
 | Channel par post nahi gaya | Admin → Telegram → Check everything; red line mein fix likha hai. Admin → Telegram → Recent posts mein error. |
-| Upload "larger than server limit" | cPanel → MultiPHP INI Editor → `upload_max_filesize` 512M, `post_max_size` 512M; ya video 720p mein compress karo. |
+| Video upload fail | Videos 8 MB parts mein jaati hain, PHP limit ka asar nahi. Settings → Video ka max size aur disk space check karo. |
 | "Watch ad" se paise nahi aate | Admin → **Rewards → Status check** dekho. "No reward callback received" likha ho to verification **Adsgram SDK result** par switch karo. Adsgram platform ka **Web app url** bilkul BotFather wala URL hona chahiye aur platform **Active** ho. Test sirf Telegram ke andar se karo. |
 | Adsterra/Monetag ka banner khali dikhta hai | Settings → Ads → **Ad subdomain**: cPanel mein `ads.bharatseo.site` subdomain banao (same document root), SSL lagao, URL yahan daalo. |
 | Bot "join channel" nahi poochta | Telegram page par "Require users to join" tick karke **Save & check** dabao (webhook dobara register hota hai). Bot channel ka admin hona chahiye. |
 | Koi aur error | Admin → Audit Logs → **⚠️ Error log** |
 | install.php "already installed" | Normal hai. Re-install ke liye Step 0 se shuru karo. |
+
+---
+
+# aaPanel guide (Nginx)
+
+aaPanel par Nginx chalta hai, jo `.htaccess` **nahi padhta**. Isliye Step C (security rules) zaroori hai,
+warna premium videos aur `database.sql` koi bhi download kar sakta hai.
+
+### A. Site + PHP
+1. aaPanel → **App Store** → **PHP 8.2** install (agar nahi hai).
+2. App Store → PHP 8.2 → **Setting → Install extensions** → **fileinfo** install karo (aaPanel mein default nahi hota, iske bina video upload fail hoga).
+   `exif` optional. `curl`, `mbstring`, `openssl`, `pdo_mysql`, `gd` pehle se hote hain.
+3. **Website → Add site** → Domain `bharatseo.site` → PHP version **82** → Database: **MySQL** (naam/user/password note karo) → Submit.
+   Site folder banega: `/www/wwwroot/bharatseo.site`
+4. Website → site → **SSL** → **Let's Encrypt** → Apply → **Force HTTPS** ON.
+
+### B. Files
+1. **Files** → `/www/wwwroot/bharatseo.site` → purani files delete karo (`.user.ini` delete nahi hogi, aaPanel ki hai, rehne do).
+2. GitHub ZIP **Upload** → right-click → **Unzip** → andar wale folder ki saari files `/www/wwwroot/bharatseo.site` mein **Cut → Paste**.
+   Check: `/www/wwwroot/bharatseo.site/install.php` hona chahiye.
+3. `uploads`, `logs`, `config` folders ki permission **755**, owner **www**.
+
+### C. Security rules (zaroori!)
+Website → site → **URL rewrite** (Rewrite) → box mein `deploy/nginx-aapanel.conf` ka **poora content** paste karo → **Save**.
+(File Files → `deploy/nginx-aapanel.conf` mein hai; installer ke Step 5 par bhi dikhta hai.)
+Check: browser mein `https://bharatseo.site/database.sql` → **403** aana chahiye. Admin dashboard par red warning nahi aani chahiye.
+
+### D. Installer
+`https://bharatseo.site/install.php` → upar wale Step 5 jaisa. Database host: `localhost`, naam/user/password = Step A3 wale.
+
+### E. Cron
+aaPanel → **Cron** → **Add Task** → Type **Shell Script**, har ek ke liye:
+
+| Name | Period | Script |
+|---|---|---|
+| Subscription expiry | Every hour, minute 0 | `/www/server/php/82/bin/php /www/wwwroot/bharatseo.site/cron/subscription-expiry.php` |
+| Referral rewards | Every hour, minute 15 | `/www/server/php/82/bin/php /www/wwwroot/bharatseo.site/cron/referral-rewards.php` |
+| Analytics | Every day, 01:00 | `/www/server/php/82/bin/php /www/wwwroot/bharatseo.site/cron/analytics.php` |
+| Cleanup | Every day, 03:00 | `/www/server/php/82/bin/php /www/wwwroot/bharatseo.site/cron/reward-cleanup.php` |
+
+(Installer Step 5 exact PHP path dikhata hai.)
+
+### F. Badi videos
+Videos 8 MB ke parts mein upload hoti hain, isliye aaPanel ki 50 MB PHP limit se farak nahi padta.
+Max size: Admin → **Settings → Video** (default 2 GB). Asli limit disk space hai: aaPanel home par disk dekho.
+Upload ke dauraan page band mat karna.
+
+### aaPanel problems
+| Problem | Fix |
+|---|---|
+| Dashboard par "private files can be downloaded" | Step C dobara karo, Save dabao |
+| Upload "not a valid video" har file par | PHP **fileinfo** extension install karo (Step A2) |
+| Upload "HTTP 413" | URL rewrite mein `client_max_body_size 64m;` hai? Save kiya? |
+| 502 Bad Gateway | App Store → PHP 8.2 → Service → Restart |
+| Video bufferring/slow start | Normal for first play on slow servers; MP4 ko "faststart" ke saath export karo (HandBrake: Web Optimized ✔) |

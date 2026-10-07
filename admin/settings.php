@@ -13,6 +13,9 @@ $sections = [
         ['general', 'app_name', 'App name', 'text', 'Shown in the bot messages and payment page'],
         ['general', 'app_url', 'Site URL', 'url', 'e.g. https://bharatseo.site (no trailing slash)'],
     ],
+    'Video' => [
+        ['video', 'max_upload_size', 'Max video size (MB)', 'mb', 'Videos upload in 8 MB parts, so this can be larger than the hosting upload limit. Disk space is the real limit.'],
+    ],
     'Ads' => [
         ['ads', 'enabled', 'Show ads to free users', 'bool', 'Master switch. Premium users never see ads.'],
         ['ads', 'banner_enabled', 'Show banner ads', 'bool', 'Banner on Home and below the player'],
@@ -85,6 +88,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 case 'gateway':
                     saveSetting($cat, $key, in_array($val, ['razorpay', 'payu'], true) ? $val : '');
                     break;
+                case 'mb':
+                    if (!preg_match('/^\d{1,6}$/', $val) || (int)$val < 10) { $errors[] = "$label must be a number of MB (10 or more)"; break; }
+                    saveSetting($cat, $key, (int)$val * 1024 * 1024, 'INTEGER');
+                    break;
                 case 'adsgramblock':
                     if ($val !== '' && !preg_match('/^(int-)?\d{1,12}$/', $val)) { $errors[] = "$label must look like int-12345"; break; }
                     saveSetting($cat, $key, $val);
@@ -144,6 +151,8 @@ include __DIR__ . '/includes/header.php';
                             <option value="test" <?= $val !== 'live' ? 'selected' : '' ?>>Test (test.payu.in)</option>
                             <option value="live" <?= $val === 'live' ? 'selected' : '' ?>>Live (secure.payu.in)</option>
                         </select>
+                    <?php elseif ($kind === 'mb'): ?>
+                        <input class="form-control" name="<?= e($name) ?>" value="<?= (int)round(((int)$val ?: 524288000) / 1048576) ?>">
                     <?php elseif ($kind === 'secret'): ?>
                         <input class="form-control" type="password" autocomplete="off" name="<?= e($name) ?>" placeholder="<?= $val !== '' ? '•••••••• saved' : 'not set' ?>">
                     <?php else: ?>
