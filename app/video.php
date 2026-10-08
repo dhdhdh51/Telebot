@@ -230,6 +230,10 @@
     <div id="errorContainer"></div>
 
     <div id="videoInfo" class="video-info" style="display:none;"></div>
+    <div class="actions" style="display:none;align-items:center">
+        <span style="font-size:13px">⚙️ Quality</span>
+        <select id="qualitySel" style="flex:1;padding:8px;border-radius:10px;border:0;background:var(--tg-theme-secondary-bg-color,#f0f0f0);color:var(--tg-theme-text-color,#000)"></select>
+    </div>
     <div class="actions" id="actions" style="display:none">
         <button id="shareBtn">📤 Share</button>
         <a href="/app/subscription.php" id="premiumBtn" style="display:none">💎 Go ad-free</a>
@@ -263,7 +267,7 @@
             const res = await BP.api('/api/videos.php?action=get&id=' + videoId);
             if (!res.success) return fail(res.error.message);
 
-            const { video, can_access, stream_url, watch_history } = res.data;
+            const { video, can_access, stream_url, watch_history, qualities } = res.data;
             document.getElementById('loadingContainer').style.display = 'none';
             displayVideoInfo(video);
 
@@ -271,6 +275,7 @@
             setupActions(res.data.share_url, video);
             loadRelated();
             if (can_access && stream_url) {
+                setupQualities(stream_url, qualities);
                 showVideoPlayer(stream_url, watch_history);
             } else {
                 showPremiumLock();
@@ -295,6 +300,19 @@
                 t.style.display = 'block';
                 t.onclick = () => { const c = d.classList.toggle('clamp'); t.textContent = c ? 'Show more' : 'Show less'; };
             }
+        }
+
+        function setupQualities(streamUrl, qualities) {
+            if (!qualities || qualities.length < 2) return;
+            const sel = document.getElementById('qualitySel');
+            sel.innerHTML = qualities.map(q => `<option value="${BP.escapeHtml(q.label)}">${BP.escapeHtml(q.label)}</option>`).join('');
+            sel.parentElement.style.display = 'flex';
+            sel.onchange = () => {
+                const v = document.getElementById('video');
+                const t = v.currentTime, playing = !v.paused;
+                v.src = streamUrl + '&quality=' + encodeURIComponent(sel.value);
+                v.addEventListener('loadedmetadata', () => { v.currentTime = t; if (playing) v.play().catch(() => {}); }, { once: true });
+            };
         }
 
         function setupActions(shareUrl, v) {

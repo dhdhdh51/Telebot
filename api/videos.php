@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/video.php';
 require_once __DIR__ . '/../includes/ads.php';
 require_once __DIR__ . '/../includes/telegram.php';
+require_once __DIR__ . '/../includes/vidvault.php';
 
 header('Content-Type: application/json');
 
@@ -92,11 +93,24 @@ function getVideo($userId) {
         Video::incrementViews($videoId, $userId); // de-duplicated per user (see Video)
     }
 
+    // Quality options (VidVault renditions, e.g. Original (1080p), 720p, 480p)
+    $qualities = [];
+    if ($canAccess) {
+        $path = db()->fetchOne("SELECT video_path FROM videos WHERE id = ?", [$videoId])['video_path'];
+        if (VidVault::isRemote($path) && ($rid = VidVault::remoteId($path))) {
+            $pb = VidVault::playback($rid);
+            foreach ($pb['sources'] ?? [] as $src) {
+                $qualities[] = ['label' => (string)$src['label'], 'height' => (int)$src['height']];
+            }
+        }
+    }
+
     jsonResponse(true, [
         'video' => $video,
         'can_access' => $canAccess,
         'watch_history' => $watchHistory ?: null,
         'stream_url' => $canAccess ? "/api/video-stream.php?id={$videoId}" : null,
+        'qualities' => count($qualities) > 1 ? $qualities : [],
         'share_url' => tgConf('bot_username') !== '' ? (new Telegram())->watchLink($videoId) : null
     ]);
 }
