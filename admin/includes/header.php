@@ -319,7 +319,7 @@ $currentAdmin = Auth::getCurrentAdmin();
                 <?php
                 // Only link pages that exist, so the menu never leads to a 404.
                 $menu = [
-                    'dashboard' => ['📊', 'Dashboard'], 'videos' => ['🎬', 'Videos'],
+                    'dashboard' => ['📊', 'Dashboard'], 'videos' => ['🎬', 'Videos'], 'vidvault' => ['☁️', 'VidVault'],
                     'categories' => ['📁', 'Categories'], 'telegram' => ['📱', 'Telegram'],
                     'users' => ['👥', 'Users'], 'subscriptions' => ['💎', 'Subscriptions'],
                     'ads' => ['📺', 'Ads'], 'rewards' => ['🎁', 'Rewards'],

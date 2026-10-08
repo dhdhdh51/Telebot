@@ -648,6 +648,8 @@ INSERT INTO `settings` (`category`, `key`, `value`, `type`, `is_secret`, `descri
 ('telegram', 'force_join', '0', 'BOOLEAN', 0, 'Require channel join'),
 ('system', 'schema_version', '1', 'INTEGER', 0, 'Database schema version'),
 
+('storage', 'vidvault_url', 'https://vault.bharatseo.site', 'STRING', 0, 'VidVault base URL'),
+('storage', 'vidvault_key', '', 'STRING', 1, 'VidVault API key'),
 ('video', 'max_upload_size', '2147483648', 'INTEGER', 0, 'Maximum video upload size in bytes (2 GB, chunked upload)'),
 ('video', 'allowed_formats', '["mp4", "mkv", "avi", "mov", "webm"]', 'JSON', 0, 'Allowed video formats'),
 ('video', 'thumbnail_max_size', '2097152', 'INTEGER', 0, 'Maximum thumbnail size in bytes (2MB)'),

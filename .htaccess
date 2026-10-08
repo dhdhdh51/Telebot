@@ -1,49 +1,35 @@
-# BharatPlay Apache configuration (cPanel / shared hosting)
+# BharatPlay – Apache / LiteSpeed / OpenLiteSpeed (aaPanel "OLS") rules
+#
+# Only RewriteRule-based blocking is used, because OpenLiteSpeed ignores
+# <FilesMatch>, Require and per-folder .htaccess files. Works on Apache too.
+# On aaPanel with OpenLiteSpeed: Website → site → URL rewrite shows THIS file –
+# never paste Nginx rules there. (Nginx servers: use deploy/nginx-aapanel.conf.)
 
 Options -Indexes
 DirectoryIndex index.php
 
 <IfModule mod_rewrite.c>
-    RewriteEngine On
+RewriteEngine On
 
-    # Force HTTPS (required by Telegram Mini Apps). Uncomment once SSL is active.
-    # RewriteCond %{HTTPS} off
-    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# Force HTTPS (aaPanel: use Website → SSL → Force HTTPS instead)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-    # Private code, config, logs, CLI tools and VCS metadata are never web-accessible.
-    RewriteRule ^(config|includes|logs|cron|cli|\.git)(/|$) - [F,L]
-    # Raw video files must go through api/video-stream.php (auth + premium check).
-    RewriteRule ^uploads/videos/ - [F,L]
+# Private code, config, logs, cron, deploy files
+RewriteRule ^(config|includes|logs|cron|deploy|cli)(/|$) - [F,L]
+RewriteRule ^(admin|app)/includes(/|$) - [F,L]
+# Raw videos only via /api/video-stream.php (login + premium check); unfinished uploads
+RewriteRule ^uploads/(videos|tmp)(/|$) - [F,L]
+# Nothing in thumbnails may execute
+RewriteRule ^uploads/thumbnails/.*\.(php|phtml|phar|php[0-9]|pl|py|cgi|sh)$ - [F,NC,L]
+# Dumps, docs, logs, ini/env, backups anywhere
+RewriteRule \.(sql|md|lock|log|bak|ini|sh|env)$ - [F,NC,L]
+# Dotfiles (.git, .env, .user.ini, .htaccess) – but keep Let's Encrypt working
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule (^|/)\. - [F,L]
 </IfModule>
-
-# Dotfiles (.env, .user.ini, .htaccess, .git*) and dumps/docs/backups
-<FilesMatch "^\.">
-    Require all denied
-</FilesMatch>
-<FilesMatch "\.(sql|md|lock|log|bak|ini|sh|example\.php)$">
-    Require all denied
-</FilesMatch>
 
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
-    Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
-    # No X-Frame-Options here: Telegram Web/Desktop embed the Mini App in an iframe.
-    # Content-Security-Policy (incl. frame-ancestors) is sent per page by PHP: see setCsp() in includes/bootstrap.php.
 </IfModule>
-
-<IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json
-</IfModule>
-
-<IfModule mod_expires.c>
-    ExpiresActive On
-    ExpiresByType image/jpeg "access plus 1 month"
-    ExpiresByType image/png "access plus 1 month"
-    ExpiresByType image/webp "access plus 1 month"
-    ExpiresByType text/css "access plus 1 week"
-    ExpiresByType application/javascript "access plus 1 week"
-</IfModule>
-
-# PHP limits (upload size etc.) live in .user.ini — php_value lines break
-# PHP-FPM hosts with a 500 error and are ignored by PHP 8's mod_php name.

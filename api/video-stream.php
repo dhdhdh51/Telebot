@@ -12,6 +12,7 @@
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/video.php';
+require_once __DIR__ . '/../includes/vidvault.php';
 
 $userId = !empty($_SESSION['authenticated']) ? (int)($_SESSION['user_id'] ?? 0) : 0;
 // CRITICAL: release the session lock before streaming. PHP sessions are locked
@@ -40,6 +41,22 @@ if (!$video || $video['status'] !== 'PUBLISHED') {
 }
 if (!canAccessVideo($userId, $video)) {
     streamError(403, 'Premium subscription required');
+}
+
+// VidVault storage: access was checked above; send the player to a short-lived
+// signed URL (VidVault serves Range requests itself). The video stays private there.
+if (VidVault::isRemote($video['video_path'])) {
+    $remoteId = VidVault::remoteId($video['video_path']);
+    $pb = $remoteId ? VidVault::playback($remoteId) : ['error' => ['message' => 'bad id']];
+    if (isset($pb['error']) || empty($pb['sources'])) {
+        error_log("VidVault playback failed for video #$videoId: " . ($pb['error']['message'] ?? ''));
+        streamError(502, 'Video storage is temporarily unavailable');
+    }
+    $src = VidVault::pickSource($pb['sources'], preg_replace('/[^0-9A-Za-z() ]/', '', (string)($_GET['quality'] ?? '')));
+    header('Cache-Control: private, no-store');
+    header('Referrer-Policy: no-referrer');
+    header('Location: ' . $src['url'], true, 302);
+    exit;
 }
 
 // basename() guards against a tampered DB value escaping the storage directory.

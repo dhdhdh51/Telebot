@@ -13,6 +13,10 @@ $sections = [
         ['general', 'app_name', 'App name', 'text', 'Shown in the bot messages and payment page'],
         ['general', 'app_url', 'Site URL', 'url', 'e.g. https://bharatseo.site (no trailing slash)'],
     ],
+    'Storage (VidVault)' => [
+        ['storage', 'vidvault_url', 'VidVault URL', 'url', 'e.g. https://vault.bharatseo.site'],
+        ['storage', 'vidvault_key', 'VidVault API key', 'secret', 'VidVault → Settings → API keys → Create (starts with vv_). Kept encrypted on this server only. Leave empty to keep the saved key.'],
+    ],
     'Video' => [
         ['video', 'max_upload_size', 'Max video size (MB)', 'mb', 'Videos upload in 8 MB parts, so this can be larger than the hosting upload limit. Disk space is the real limit.'],
     ],
